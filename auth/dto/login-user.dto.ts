@@ -6,7 +6,7 @@ export class LoginUserDto {
     @Expose()
     @IsString()
     @ApiProperty({ example: 'john.doe@example.com', description: 'Email of the user' })
-    username: string;
+    email: string;
 
     @Expose()
     @IsString()

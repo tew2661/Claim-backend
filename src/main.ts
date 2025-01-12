@@ -7,10 +7,12 @@ import * as cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const origin: any = process.env.NEST_ENABLECORS ? process.env.NEST_ENABLECORS.split(',') : [true]
+  // app.useGlobalPipes(new ValidationPipe({
+  //   transform: true, // เปิดการแปลงประเภทข้อมูล
+  //   whitelist: true, // ลบค่าที่ไม่ได้ระบุใน DTO
+  // }));
   app.useGlobalPipes(new ValidationPipe({
-    transform: true, // เปิดการแปลงประเภทข้อมูล
-    whitelist: false, // ลบค่าที่ไม่ได้ระบุใน DTO
-    forbidNonWhitelisted: true, // ป้องกันค่าที่ไม่ได้ระบุใน DTO
+    transform: true, // เปิดการแปลงข้อมูลใน DTO
   }));
   app.setGlobalPrefix(process.env.NEST_GLOBALPREFIX);
   app.enableCors({
@@ -18,7 +20,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.use(cookieParser());
+  // app.use(cookieParser());
   await app.listen(process.env.NEST_PORT ?? 3000);
 }
 bootstrap();

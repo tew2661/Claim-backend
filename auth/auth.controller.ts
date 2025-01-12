@@ -19,8 +19,8 @@ export class AuthController {
     @ApiOperation({ summary: 'User Login' })
     @ApiBody({ type: LoginUserDto })
     async login(@Body() body: LoginUserDto, @Res() res: Response) {
-        const { username, password } = body;
-        const dataLogin = await this.authService.login(username, password)
+        const { email, password } = body;
+        const dataLogin = await this.authService.login(email, password)
         return res.status(200).json({ 
             message: 'Login successful', 
             statusCode: 200, 

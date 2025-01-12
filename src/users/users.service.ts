@@ -67,7 +67,7 @@ export class UsersService {
 
         const createUser: DeepPartial<UsersEntity> = {
             ...createUserDto,
-            active: ActiveStatus.NO,
+            active: ActiveStatus.YES,
             image: (imageFilename) ? (`${configPath.pathFileUser}/${imageFilename}`) : null,
         };
 
@@ -101,6 +101,10 @@ export class UsersService {
 
         if (updateUserDto.name) {
             fieldUpdate.name = updateUserDto.name
+        }
+
+        if (updateUserDto.role) {
+            fieldUpdate.role = updateUserDto.role
         }
 
         if (updateUserDto.email) {
@@ -163,14 +167,12 @@ export class UsersService {
         return dataUser;
     }
 
-    async validateUser(email: string, plainPassword: string): Promise<UsersEntity> {
-        console.log('email' , email)
+    async validateUser(username: string, plainPassword: string): Promise<UsersEntity> {
         const user = await this.usersRepository
             .createQueryBuilder('user')
-            .leftJoinAndSelect('user.role', 'role')
             .addSelect('user.password')
-            .where('user.email = :email', { email })
-            .andWhere('user.activeRow = :activeRow', { activeRow: 'Y' })
+            .where('CAST(user.code AS NVARCHAR) = :username', { username })
+            .andWhere('CAST(user._activeRow AS NVARCHAR) = :activeRow', { activeRow: 'Y' })
             .getOne();
 
         if (user && await bcrypt.compare(plainPassword, user.password)) {
@@ -178,5 +180,5 @@ export class UsersService {
         }
         return null;
     }
-
 }
+ 

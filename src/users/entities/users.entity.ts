@@ -40,11 +40,11 @@ export class UsersEntity {
     @Column({ type: 'nvarchar', length: 255, nullable: true, select: false })
     password: string;
 
-    @Column({ type: 'nvarchar', length: 1, nullable: true, default: ActiveStatus.NO })
-    private _active: string;
+    @Column({ type: 'nvarchar', name: '_active', length: 1, nullable: true, default: ActiveStatus.NO })
+    active: string;
 
-    @Column({ type: 'nvarchar', length: 1, nullable: false, default: ActiveStatus.YES })
-    private _activeRow: string;
+    @Column({ type: 'nvarchar', name: '_activeRow', length: 1, nullable: false, default: ActiveStatus.YES })
+    activeRow: string;
 
     @CreateDateColumn({ nullable: false })
     createdAt: Date;
@@ -63,23 +63,5 @@ export class UsersEntity {
 
     @ManyToOne(() => UsersEntity, user => user.id, { nullable: true, onDelete: 'NO ACTION' })
     deletedBy: UsersEntity;
-
-    // Getter and Setter for Active
-    get active(): ActiveStatus {
-        return this._active as ActiveStatus;
-    }
-
-    set active(status: ActiveStatus) {
-        this._active = status;
-    }
-
-    // Getter and Setter for ActiveRow
-    get activeRow(): ActiveStatus {
-        return this._activeRow as ActiveStatus;
-    }
-
-    set activeRow(status: ActiveStatus) {
-        this._activeRow = status;
-    }
 
 }

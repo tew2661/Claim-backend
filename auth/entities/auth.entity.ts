@@ -6,7 +6,7 @@ import {
   ManyToOne
 } from 'typeorm';
 
-@Entity({ schema: 'dbo', name: 'auth' })
+@Entity('auth')
 export class AuthEntity {
   @PrimaryGeneratedColumn()
   id: number;

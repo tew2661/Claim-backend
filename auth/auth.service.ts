@@ -1,9 +1,10 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../users/users.service';
+import { AuthEntity } from './entities/auth.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ActiveStatus, UsersEntity } from 'src/users/entities/users.entity';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class AuthService {
@@ -16,11 +17,13 @@ export class AuthService {
     constructor(
         private readonly usersService: UsersService,
         private readonly jwtService: JwtService,
+        @InjectRepository(AuthEntity)
+        private readonly authRepository: Repository<AuthEntity>,
 
     ) { }
 
-    async login(username: string, password: string) {
-        const user = await this.usersService.validateUser(username, password);
+    async login(email: string, password: string) {
+        const user = await this.usersService.validateUser(email, password);
         if (!user) {
             throw new BadRequestException('รหัสผ่านไม่ถูกต้อง.');
         }
@@ -66,6 +69,37 @@ export class AuthService {
             };
         } catch (error) {
             throw new UnauthorizedException('Invalid refresh token');
+        }
+    }
+
+    async getRefreshToken(user: UsersEntity): Promise<AuthEntity | null> {
+        const auth = await this.authRepository
+            .createQueryBuilder('auth')
+            .addSelect('auth.refreshToken') // ดึง refreshToken ที่ปกติจะถูกซ่อนไว้
+            .where('auth.userId = :userId', { userId: user.id })
+            .getOne();
+
+        return auth ? auth : null;
+    }
+
+    async updateRefreshToken(user: UsersEntity, token: string): Promise<void> {
+        // ค้นหาบันทึกในตาราง auth
+        const existingAuth = await this.authRepository.findOne({ where: { user: { id: user.id } } });
+        if (existingAuth.user.active == ActiveStatus.NO) {
+            throw new BadRequestException('user ไม่ถูกเปิดใช้งาน');
+        }
+
+        if (existingAuth) {
+            // อัปเดต Refresh Token
+            existingAuth.refreshToken = token;
+            await this.authRepository.save(existingAuth);
+        } else {
+            // สร้างบันทึกใหม่ใน auth
+            const newAuth = this.authRepository.create({
+                user: user,
+                refreshToken: token,
+            });
+            await this.authRepository.save(newAuth);
         }
     }
 }

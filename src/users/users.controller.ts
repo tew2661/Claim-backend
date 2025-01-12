@@ -1,5 +1,5 @@
 import { UsersEntity } from './entities/users.entity';
-import { Controller, Get, Post, Body, Param, Patch, Delete, UseInterceptors, BadRequestException, UploadedFile, UseGuards, Res, Req, Query, ParseIntPipe, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, UseInterceptors, BadRequestException, UploadedFile, UseGuards, Res, Req, Query, ParseIntPipe, Inject, Put } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto, UpdateUserDto } from './dto/update-user.dto';
@@ -89,7 +89,7 @@ export class UsersController {
         return this.usersService.fixPassword(updatePasswordDto);
     }
 
-    @Patch(':id')
+    @Put(':id')
     @UseGuards(JwtAuthGuard)
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
