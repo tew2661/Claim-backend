@@ -8,10 +8,9 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { extname } from 'path';
 import { diskStorage , Multer } from 'multer';
 import * as fs from 'fs';
-import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
-import { plainToInstance } from 'class-transformer';
 import { GetUserDto } from './dto/get-user.dto';
 import { configPath } from 'src/path-files-config';
+import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT')
@@ -25,7 +24,7 @@ export class UsersController {
     @UseGuards(JwtAuthGuard)
     async findAll(@Query() Query : GetUserDto) {
         const users = await this.usersService.findAll(Query);
-        const count = await this.usersService.count();
+        const count = await this.usersService.count(Query);
         return {
             statusCode: 200,
             data: users,

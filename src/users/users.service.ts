@@ -2,18 +2,20 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto, UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, Not, Repository } from 'typeorm';
+import { DeepPartial, Like, Not, Repository } from 'typeorm';
 import { ActiveStatus, UsersEntity } from './entities/users.entity';
 import * as bcrypt from 'bcrypt';
 import * as fs from 'fs'
 import { configPath } from 'src/path-files-config';
 import { GetUserDto } from './dto/get-user.dto';
+import { MyGatewayGateway } from 'src/my-gateway/my-gateway.gateway';
 
 @Injectable()
 export class UsersService {
     constructor(
         @InjectRepository(UsersEntity)
         private readonly usersRepository: Repository<UsersEntity>, // AuthEntity
+        private readonly myGatewayGateway: MyGatewayGateway
     ) { }
 
 
@@ -22,14 +24,18 @@ export class UsersService {
             skip: query.offset,
             take: query.limit,
             where: {
+                ...query.name ? { name: Like(`%${query.name || ''}%`)} : {} ,
+                ...query.code ? { code: Like(`%${query.code || ''}%`)} : {} ,
                 activeRow: ActiveStatus.YES,
             },
         });
     }
 
-    count(): Promise<number> {
+    count(query: GetUserDto): Promise<number> {
         return this.usersRepository.count({
             where: {
+                ...query.name ? { name: Like(`%${query.name || ''}%`)} : {} ,
+                ...query.code ? { code: Like(`%${query.code || ''}%`)} : {} ,
                 activeRow: ActiveStatus.YES,
             },
         });
@@ -37,6 +43,14 @@ export class UsersService {
 
     findOne(id: number) {
         const data = this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES } });
+        if (!data) {
+            throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
+        }
+        return data;
+    }
+
+    findForMiddlewares(id: number) {
+        const data = this.usersRepository.findOne({ where: { id } });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
         }
@@ -140,7 +154,10 @@ export class UsersService {
         }
 
         await this.usersRepository.update(user.id, fieldUpdate);
-        return await this.findOne(user.id);
+        const newValue = await this.findOne(user.id);
+        this.myGatewayGateway.sendMessage('update-user', newValue);
+
+        return newValue;
     }
 
     async remove(id: number, actionBy: UsersEntity): Promise<void> {

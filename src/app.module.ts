@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { NotificationModule } from './my-gateway/my-gateway.module';
+import { SupplierModule } from './supplier/supplier.module';
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { NotificationModule } from './my-gateway/my-gateway.module';
     TypeOrmModule.forRoot(dataSource.options),
     AuthModule,
     UsersModule,
-    NotificationModule 
+    NotificationModule,
+    SupplierModule 
   ],
   controllers: [AppController],
   providers: [AppService],

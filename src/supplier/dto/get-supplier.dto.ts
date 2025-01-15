@@ -2,14 +2,15 @@ import { ApiProperty } from "@nestjs/swagger";
 import { Expose, Type } from "class-transformer";
 import { IsNumber, IsOptional, IsString } from "class-validator";
 
-export class GetUserDto {
-    @IsString()
-    @IsOptional()
-    code?: string;
+export class GetSupplierDto {
 
     @IsString()
     @IsOptional()
-    name?: string;
+    supplierCode?: string;
+
+    @IsString()
+    @IsOptional()
+    supplierName?: string;
 
     @Expose()
     @IsNumber()

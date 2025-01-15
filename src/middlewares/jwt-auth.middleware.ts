@@ -1,10 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { AuthService } from 'src/auth/auth.service';
 import { UsersService } from 'src/users/users.service';
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
+import { ActiveStatus } from 'src/users/entities/users.entity';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -26,7 +26,10 @@ export class JwtAuthGuard implements CanActivate {
     try {
       // ตรวจสอบและถอดรหัส JWT token
       const decoded = this.jwtService.verify(token, { secret : process.env.NEST_JWT_SECRET });
-      const user = await this.usersService.findOne(decoded.id);
+      const user = await this.usersService.findForMiddlewares(decoded.id);
+      if (user.activeRow == ActiveStatus.NO) {
+        throw new ForbiddenException('user ยังไม่ถูกเปิดการใช้งาน');
+      }
       request.headers.actionBy = user;
       return true; // อนุญาตให้เข้าถึงเส้นทางนี้
     } catch (err) {
