@@ -1,12 +1,14 @@
 import { UsersService } from 'src/users/users.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, Not, Repository } from 'typeorm';
+import { DeepPartial, IsNull, Like, Not, Repository } from 'typeorm';
 import { ActiveStatus, SupplierEntity } from './entities/supplier.entity';
 import { CreateSupplierDto, UpdateSupplierDto } from './dto/supplier.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { GetSupplierDto } from './dto/get-supplier.dto';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import * as bcrypt from 'bcrypt';
+import { configPath } from 'src/path-files-config';
 
 @Injectable()
 export class SupplierService {
@@ -14,7 +16,7 @@ export class SupplierService {
         @InjectRepository(SupplierEntity)
         private supplierRepository: Repository<SupplierEntity>,
         @InjectRepository(UsersEntity)
-        private userRepository: Repository<UsersEntity>,
+        private usersRepository: Repository<UsersEntity>,
         private usersService: UsersService
     ) { }
 
@@ -37,18 +39,44 @@ export class SupplierService {
             updatedBy: actionBy
         });
 
-        const user: CreateUserDto = {
+        const nowSupplier = await this.supplierRepository.save(newSupplier);
+
+        const createUserDto: CreateUserDto = {
             code: supplier.supplierCode,
             name: supplier.supplierName,
             department: 'Supplier',
             role: 'Supplier',
             email: supplier.email.length ? supplier.email[0] : "",
             password: supplier.password,
-            
         }
-        await this.usersService.create(user, newSupplier);
 
-        return await this.supplierRepository.save(newSupplier);
+        const user = await this.usersRepository.findOne({ where: { email: createUserDto.email, activeRow: ActiveStatus.YES, supplier: Not(IsNull())} });
+        if (user) {
+            throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
+        }
+
+        const user2 = await this.usersRepository.findOne({ where: { code: createUserDto.code, activeRow: ActiveStatus.YES , supplier: Not(IsNull())} });
+        if (user2) {
+            throw new ConflictException('รหัสพนักงาน นี้ถูกใช้งานแล้ว')
+        }
+
+        const saltRounds = 10;
+
+        // เข้ารหัสรหัสผ่านก่อนบันทึก
+        if (createUserDto.password) {
+            createUserDto.password = await bcrypt.hash(createUserDto.password, saltRounds);
+        }
+
+        const createUser: DeepPartial<UsersEntity> = {
+            ...createUserDto,
+            supplier: nowSupplier,
+            active: ActiveStatus.YES,
+            image: null,
+        };
+
+        const newUser = this.usersRepository.create(createUser);
+        await this.usersRepository.save(newUser);
+        return nowSupplier;
     }
 
     // Get All Suppliers
