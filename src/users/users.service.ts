@@ -2,13 +2,14 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto, UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, Like, Not, Repository } from 'typeorm';
+import { Brackets, DeepPartial, IsNull, Like, Not, Repository } from 'typeorm';
 import { ActiveStatus, UsersEntity } from './entities/users.entity';
 import * as bcrypt from 'bcrypt';
 import * as fs from 'fs'
 import { configPath } from 'src/path-files-config';
 import { GetUserDto } from './dto/get-user.dto';
 import { MyGatewayGateway } from 'src/my-gateway/my-gateway.gateway';
+import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 
 @Injectable()
 export class UsersService {
@@ -27,6 +28,7 @@ export class UsersService {
                 ...query.name ? { name: Like(`%${query.name || ''}%`)} : {} ,
                 ...query.code ? { code: Like(`%${query.code || ''}%`)} : {} ,
                 activeRow: ActiveStatus.YES,
+                supplier: IsNull()
             },
         });
     }
@@ -37,12 +39,13 @@ export class UsersService {
                 ...query.name ? { name: Like(`%${query.name || ''}%`)} : {} ,
                 ...query.code ? { code: Like(`%${query.code || ''}%`)} : {} ,
                 activeRow: ActiveStatus.YES,
+                supplier: IsNull()
             },
         });
     }
 
     findOne(id: number) {
-        const data = this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES } });
+        const data = this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, supplier: IsNull() } });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
         }
@@ -50,7 +53,7 @@ export class UsersService {
     }
 
     findForMiddlewares(id: number) {
-        const data = this.usersRepository.findOne({ where: { id } });
+        const data = this.usersRepository.findOne({ where: { id, supplier: IsNull() } });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
         }
@@ -58,16 +61,16 @@ export class UsersService {
     }
 
     findByEmail(email: string) {
-        return this.usersRepository.findOne({ where: { email, activeRow: ActiveStatus.YES } });
+        return this.usersRepository.findOne({ where: { email, activeRow: ActiveStatus.YES, supplier: IsNull() } });
     }
 
-    async create(createUserDto: CreateUserDto, imageFilename?: string ): Promise<UsersEntity> {
-        const user = await this.usersRepository.findOne({ where: { email: createUserDto.email, activeRow: ActiveStatus.YES } });
+    async create(createUserDto: CreateUserDto, supplier?: SupplierEntity, imageFilename?: string ): Promise<UsersEntity> {
+        const user = await this.usersRepository.findOne({ where: { email: createUserDto.email, activeRow: ActiveStatus.YES, supplier: IsNull()} });
         if (user) {
             throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
         }
 
-        const user2 = await this.usersRepository.findOne({ where: { code: createUserDto.code, activeRow: ActiveStatus.YES } });
+        const user2 = await this.usersRepository.findOne({ where: { code: createUserDto.code, activeRow: ActiveStatus.YES , supplier: IsNull()} });
         if (user2) {
             throw new ConflictException('รหัสพนักงาน นี้ถูกใช้งานแล้ว')
         }
@@ -81,6 +84,7 @@ export class UsersService {
 
         const createUser: DeepPartial<UsersEntity> = {
             ...createUserDto,
+            ...supplier ? { supplier } : {},
             active: ActiveStatus.YES,
             image: (imageFilename) ? (`${configPath.pathFileUser}/${imageFilename}`) : null,
         };
@@ -91,7 +95,7 @@ export class UsersService {
     }
 
     async update(id: number, updateUserDto: UpdateUserDto, actionBy: UsersEntity, imageFilename?: string): Promise<UsersEntity> {
-        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES } });
+        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, supplier: IsNull() } });
         if (!user) {
             throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
         }
@@ -104,7 +108,8 @@ export class UsersService {
             const user2 = await this.usersRepository.findOne({ where: { 
                 code: updateUserDto.code, 
                 activeRow: ActiveStatus.YES ,
-                id: Not(id)
+                id: Not(id),
+                supplier: IsNull()
             } });
             if (user2) {
                 throw new ConflictException('รหัสพนักงาน นี้ถูกใช้งานแล้ว')
@@ -125,7 +130,8 @@ export class UsersService {
             const user2 = await this.usersRepository.findOne({ where: { 
                 email: updateUserDto.email , 
                 id: Not(id), 
-                activeRow: ActiveStatus.YES 
+                activeRow: ActiveStatus.YES ,
+                supplier: IsNull()
             }});
             if (user2) {
                 throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
@@ -161,7 +167,7 @@ export class UsersService {
     }
 
     async remove(id: number, actionBy: UsersEntity): Promise<void> {
-        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES } });
+        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, supplier: IsNull() } });
         if (!user) {
             throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
         }
@@ -190,6 +196,7 @@ export class UsersService {
             .addSelect('user.password')
             .where('CAST(user.code AS NVARCHAR) = :username', { username })
             .andWhere('CAST(user._activeRow AS NVARCHAR) = :activeRow', { activeRow: 'Y' })
+            .andWhere('supplierId IS NULL')
             .getOne();
 
         if (user && await bcrypt.compare(plainPassword, user.password)) {

@@ -77,7 +77,7 @@ export class UsersController {
         @UploadedFile() image: Multer.File,
         // @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
-        return this.usersService.create(createUserDto, image?.filename);
+        return this.usersService.create(createUserDto, undefined, image?.filename);
     }
 
     @Patch('fixPassword')

@@ -33,6 +33,17 @@ export class SupplierController {
         }
     }
 
+    @Get('dropdown')
+    @UseGuards(JwtAuthGuard)
+    async findDropdownAll() {
+        return (await this.supplierService.findAllForDropdown()).map((arr)=> {
+            return {
+                value: arr.supplierCode,
+                label: arr.supplierName
+            }
+        });
+    }
+
     // Get Supplier by ID
     @Get(':id')
     @UseGuards(JwtAuthGuard)

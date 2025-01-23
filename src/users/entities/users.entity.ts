@@ -1,4 +1,5 @@
 
+import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 import {
     Entity,
     PrimaryGeneratedColumn,
@@ -7,6 +8,7 @@ import {
     UpdateDateColumn,
     DeleteDateColumn,
     ManyToOne,
+    OneToOne,
 } from 'typeorm';
 
 export enum ActiveStatus {
@@ -45,6 +47,9 @@ export class UsersEntity {
 
     @Column({ type: 'nvarchar', name: '_activeRow', length: 1, nullable: false, default: ActiveStatus.YES })
     activeRow: string;
+
+    @ManyToOne(() => SupplierEntity, supplier => supplier.id, { nullable: true, onDelete: 'NO ACTION' })
+    supplier: SupplierEntity;
 
     @CreateDateColumn({ nullable: false })
     createdAt: Date;

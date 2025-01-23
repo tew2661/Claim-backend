@@ -21,6 +21,10 @@ export class CreateSupplierDto {
   @IsArray()
   @IsEmail({}, { each: true }) // ตรวจสอบว่าเป็นอีเมลและรองรับ Array
   email?: string[]; // อีเมล (Optional)
+
+  @IsOptional()
+  @IsString()
+  password?: string;
 }
 
 export class UpdateSupplierDto extends PartialType(CreateSupplierDto) {}

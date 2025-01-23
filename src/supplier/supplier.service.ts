@@ -1,16 +1,21 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { UsersService } from 'src/users/users.service';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Like, Not, Repository } from 'typeorm';
 import { ActiveStatus, SupplierEntity } from './entities/supplier.entity';
 import { CreateSupplierDto, UpdateSupplierDto } from './dto/supplier.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { GetSupplierDto } from './dto/get-supplier.dto';
+import { CreateUserDto } from 'src/users/dto/create-user.dto';
 
 @Injectable()
 export class SupplierService {
     constructor(
         @InjectRepository(SupplierEntity)
         private supplierRepository: Repository<SupplierEntity>,
+        @InjectRepository(UsersEntity)
+        private userRepository: Repository<UsersEntity>,
+        private usersService: UsersService
     ) { }
 
     // Create Supplier
@@ -31,6 +36,18 @@ export class SupplierService {
             createdBy: actionBy,
             updatedBy: actionBy
         });
+
+        const user: CreateUserDto = {
+            code: supplier.supplierCode,
+            name: supplier.supplierName,
+            department: 'Supplier',
+            role: 'Supplier',
+            email: supplier.email.length ? supplier.email[0] : "",
+            password: supplier.password,
+            
+        }
+        await this.usersService.create(user, newSupplier);
+
         return await this.supplierRepository.save(newSupplier);
     }
 
@@ -42,6 +59,15 @@ export class SupplierService {
             where: {
                 ...query.supplierCode ? { supplierCode: Like(`%${query.supplierCode || ''}%`)} : {} ,
                 ...query.supplierName ? { supplierName: Like(`%${query.supplierName || ''}%`)} : {} ,
+                activeRow: ActiveStatus.YES,
+            },
+        });
+    }
+
+    findAllForDropdown():Promise<SupplierEntity[]> {
+        return this.supplierRepository.find({ 
+            select: ['supplierCode' , 'supplierName' ],
+            where: {
                 activeRow: ActiveStatus.YES,
             },
         });
@@ -59,7 +85,11 @@ export class SupplierService {
 
     // Get Supplier by ID
     async findOne(id: number): Promise<SupplierEntity> {
-        return await this.supplierRepository.findOne({ where: { id, activeRow: ActiveStatus.YES } });
+        const data = await this.supplierRepository.findOne({ where: { id, activeRow: ActiveStatus.YES } });
+        if (!data) {
+            throw new NotFoundException('ไม่พบ supplier id นี้')
+        }
+        return data
     }
 
     // Update Supplier
