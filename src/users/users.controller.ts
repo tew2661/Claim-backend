@@ -3,10 +3,10 @@ import { Controller, Get, Post, Body, Param, Patch, Delete, UseInterceptors, Bad
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto, UpdateUserDto } from './dto/update-user.dto';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { extname } from 'path';
-import { diskStorage , Multer } from 'multer';
+import { diskStorage } from 'multer';
 import * as fs from 'fs';
 import { GetUserDto } from './dto/get-user.dto';
 import { configPath } from 'src/path-files-config';
@@ -74,7 +74,7 @@ export class UsersController {
     })
     create(
         @Body() createUserDto: CreateUserDto, 
-        @UploadedFile() image: Multer.File,
+        @UploadedFile() image: Express.Multer.File,
         // @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
         return this.usersService.create(createUserDto, undefined, image?.filename);
@@ -122,7 +122,7 @@ export class UsersController {
     async update(
         @Param('id') id: number, 
         @Body() updateUserDto: UpdateUserDto , 
-        @UploadedFile() image: Multer.File,
+        @UploadedFile() image: Express.Multer.File,
         @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
         return this.usersService.update(id, updateUserDto ,actionBy, image?.filename);

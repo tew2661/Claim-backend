@@ -7,8 +7,8 @@ import { CreateSupplierDto, UpdateSupplierDto } from './dto/supplier.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { GetSupplierDto } from './dto/get-supplier.dto';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import { UpdateUserDto } from 'src/users/dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
-import { configPath } from 'src/path-files-config';
 
 @Injectable()
 export class SupplierService {
@@ -50,32 +50,7 @@ export class SupplierService {
             password: supplier.password,
         }
 
-        const user = await this.usersRepository.findOne({ where: { email: createUserDto.email, activeRow: ActiveStatus.YES, supplier: Not(IsNull())} });
-        if (user) {
-            throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
-        }
-
-        const user2 = await this.usersRepository.findOne({ where: { code: createUserDto.code, activeRow: ActiveStatus.YES , supplier: Not(IsNull())} });
-        if (user2) {
-            throw new ConflictException('รหัสพนักงาน นี้ถูกใช้งานแล้ว')
-        }
-
-        const saltRounds = 10;
-
-        // เข้ารหัสรหัสผ่านก่อนบันทึก
-        if (createUserDto.password) {
-            createUserDto.password = await bcrypt.hash(createUserDto.password, saltRounds);
-        }
-
-        const createUser: DeepPartial<UsersEntity> = {
-            ...createUserDto,
-            supplier: nowSupplier,
-            active: ActiveStatus.YES,
-            image: null,
-        };
-
-        const newUser = this.usersRepository.create(createUser);
-        await this.usersRepository.save(newUser);
+        await this.usersService.create(createUserDto, nowSupplier, undefined, true);
         return nowSupplier;
     }
 
@@ -156,9 +131,21 @@ export class SupplierService {
         }
 
         await this.supplierRepository.update(id, {
-            ...supplier,
+            ...updateSupplier,
             updatedBy: actionBy
         });
+
+        const user = await this.usersRepository.findOne({ where: { supplier: { id: id } } })
+        const updateUserDto: UpdateUserDto = {
+            ...supplier.supplierCode ? { code: supplier.supplierCode } : {} ,
+            ...supplier.supplierName ? { name: supplier.supplierName }: {},
+            ...supplier.email ? { email: supplier.email.length ? supplier.email[0] : "" }: {},
+            ...supplier.password ? { password: supplier.password } : {}
+        }
+        if (Object.keys(updateUserDto).length) {
+            this.usersService.update(user.id, updateUserDto, actionBy , undefined, true);
+        }
+        
         return await this.findOne(id);
     }
 

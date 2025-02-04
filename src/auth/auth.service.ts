@@ -19,13 +19,24 @@ export class AuthService {
 
     ) { }
 
-    async login(username: string, password: string) {
-        const user = await this.usersService.validateUser(username, password);
+    async login(username: string, password: string, mode: 'supplier' | 'jtekt' = 'jtekt') {
+        let user = null;
+
+        if (mode == 'jtekt') {
+            user = await this.usersService.validateUser(username, password);
+        } else {
+            user = await this.usersService.validateUserForSupplier(username, password);
+        }
         if (!user) {
             throw new BadRequestException('รหัสผ่านไม่ถูกต้อง.');
         }
 
-        const dataUser = await this.usersService.findOne(user.id);
+        let dataUser = null;
+        if (mode == 'jtekt') {
+            dataUser = await this.usersService.findOne(user.id);
+        } else {
+            dataUser = await this.usersService.findOneForSupplier(user.id);
+        }
         if (!dataUser) {
             throw new BadRequestException('ไม่พบ user ที่ใช้งานได้');
         }
@@ -47,7 +58,7 @@ export class AuthService {
     async refreshTokens(refreshToken: string) {
         try {
             const _user = this.jwtService.verify(refreshToken, { secret: this.refreshTokenSecret });
-            const user = await this.usersService.findOne(_user.id);
+            const user = await this.usersService.findOneAll(_user.id);
             if (!user) {
                 throw new UnauthorizedException('Invalid refresh token');
             }

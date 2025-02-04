@@ -52,8 +52,24 @@ export class UsersService {
         return data;
     }
 
+    findOneForSupplier(id: number) {
+        const data = this.usersRepository.findOne({ relations: ['supplier'], where: { id, activeRow: ActiveStatus.YES, supplier: Not(IsNull()) } });
+        if (!data) {
+            throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
+        }
+        return data;
+    }
+
+    findOneAll(id: number) {
+        const data = this.usersRepository.findOne({ relations: ['supplier'], where: { id, activeRow: ActiveStatus.YES } });
+        if (!data) {
+            throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
+        }
+        return data;
+    }
+
     findForMiddlewares(id: number) {
-        const data = this.usersRepository.findOne({ where: { id, supplier: IsNull() } });
+        const data = this.usersRepository.findOne({ where: { id } });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
         }
@@ -64,13 +80,13 @@ export class UsersService {
         return this.usersRepository.findOne({ where: { email, activeRow: ActiveStatus.YES, supplier: IsNull() } });
     }
 
-    async create(createUserDto: CreateUserDto, supplier?: SupplierEntity, imageFilename?: string ): Promise<UsersEntity> {
-        const user = await this.usersRepository.findOne({ where: { email: createUserDto.email, activeRow: ActiveStatus.YES, supplier: IsNull()} });
+    async create(createUserDto: CreateUserDto, supplier?: SupplierEntity, imageFilename?: string , isSupplier?: boolean): Promise<UsersEntity> {
+        const user = await this.usersRepository.findOne({ where: { email: createUserDto.email, activeRow: ActiveStatus.YES, ...isSupplier? { supplier: Not(IsNull()) }: { supplier: IsNull() }} });
         if (user) {
             throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
         }
 
-        const user2 = await this.usersRepository.findOne({ where: { code: createUserDto.code, activeRow: ActiveStatus.YES , supplier: IsNull()} });
+        const user2 = await this.usersRepository.findOne({ where: { code: createUserDto.code, activeRow: ActiveStatus.YES , ...isSupplier? { supplier: Not(IsNull()) }: { supplier: IsNull() }} });
         if (user2) {
             throw new ConflictException('รหัสพนักงาน นี้ถูกใช้งานแล้ว')
         }
@@ -94,8 +110,8 @@ export class UsersService {
         return await this.findOne(data.id);
     }
 
-    async update(id: number, updateUserDto: UpdateUserDto, actionBy: UsersEntity, imageFilename?: string): Promise<UsersEntity> {
-        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, supplier: IsNull() } });
+    async update(id: number, updateUserDto: UpdateUserDto, actionBy: UsersEntity, imageFilename?: string, isSupplier?: boolean): Promise<UsersEntity> {
+        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, ...isSupplier? { supplier: Not(IsNull()) }: { supplier: IsNull() } } });
         if (!user) {
             throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
         }
@@ -199,6 +215,22 @@ export class UsersService {
             .andWhere('supplierId IS NULL')
             .getOne();
 
+        if (user && await bcrypt.compare(plainPassword, user.password)) {
+            return user;
+        }
+        return null;
+    }
+
+    async validateUserForSupplier(username: string, plainPassword: string): Promise<UsersEntity> {
+        const user = await this.usersRepository
+            .createQueryBuilder('user')
+            .addSelect('user.password')
+            .where('CAST(user.code AS NVARCHAR) = :username', { username })
+            .andWhere('CAST(user._activeRow AS NVARCHAR) = :activeRow', { activeRow: 'Y' })
+            .andWhere('supplierId IS NOT NULL')
+            .getOne();
+
+        console.log('user' , user , plainPassword, await bcrypt.compare(plainPassword, user.password))
         if (user && await bcrypt.compare(plainPassword, user.password)) {
             return user;
         }

@@ -28,6 +28,19 @@ export class AuthController {
         });
     }
 
+    @Post('login-supplier')
+    @ApiOperation({ summary: 'User Login' })
+    @ApiBody({ type: LoginUserDto })
+    async loginSupplier(@Body() body: LoginUserDto, @Res() res: Response) {
+        const { username, password } = body;
+        const dataLogin = await this.authService.login(username, password, 'supplier')
+        return res.status(200).json({ 
+            message: 'Login successful', 
+            statusCode: 200, 
+            ...dataLogin
+        });
+    }
+
     @Get('me')
     @UseGuards(JwtAuthGuard)
     async GetUserMe(

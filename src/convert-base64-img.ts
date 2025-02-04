@@ -1,0 +1,42 @@
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
+
+const saveBase64File = async (base64String: string, basePath: string , filenamePrefix: string) => {
+    // ตรวจสอบว่ามี Data URI หรือไม่
+    const dataUriRegex = /^data:(.+);base64,(.*)$/;
+    const matches = base64String.match(dataUriRegex);
+    let base64Data = base64String;
+    let ext = 'png'; // ค่า default
+
+    if (matches) {
+      // ตัวอย่าง: matches[1] = "image/png", matches[2] = Base64 data
+      base64Data = matches[2];
+      const mimeType = matches[1];
+      if (mimeType === 'image/jpeg') {
+        ext = 'jpg';
+      } else if (mimeType === 'image/png') {
+        ext = 'png';
+      } else if (mimeType === 'image/gif') {
+        ext = 'gif';
+      }
+    }
+
+    // กำหนดชื่อไฟล์โดยใช้ prefix + timestamp
+    const fileName = `${filenamePrefix}-${Date.now()}.${ext}`;
+    // กำหนด path ที่จะบันทึกไฟล์ (เช่นในโฟลเดอร์ uploads ใน root project)
+    const uploadDir = basePath;
+
+    // ตรวจสอบว่าโฟลเดอร์ uploads มีอยู่หรือไม่ หากไม่มีให้สร้างใหม่
+    try {
+      await mkdir(uploadDir, { recursive: true });
+    } catch (err) {
+      console.error('Error creating upload directory:', err);
+    }
+
+    const filePath = join(uploadDir, fileName);
+    const fileBuffer = Buffer.from(base64Data, 'base64');
+    await writeFile(filePath, fileBuffer);
+    return filePath;
+}
+
+export { saveBase64File }

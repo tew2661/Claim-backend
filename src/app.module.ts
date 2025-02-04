@@ -8,6 +8,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { NotificationModule } from './my-gateway/my-gateway.module';
 import { SupplierModule } from './supplier/supplier.module';
+import { QprModule } from './qpr/qpr.module';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { SupplierModule } from './supplier/supplier.module';
     AuthModule,
     UsersModule,
     NotificationModule,
-    SupplierModule 
+    SupplierModule,
+    QprModule
   ],
   controllers: [AppController],
   providers: [AppService],
