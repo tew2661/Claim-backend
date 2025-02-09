@@ -10,6 +10,7 @@ import {
     ManyToOne,
     UpdateDateColumn,
 } from 'typeorm';
+import { SaveObjectQPR } from '../dto/action-supplier.dto';
 
 export enum ActiveStatus {
     YES = 'Y',
@@ -18,8 +19,12 @@ export enum ActiveStatus {
 
 export enum ReportStatus {
     Approved = 'Approved',
+    Save = 'Save',
+    WaitForSupplier = 'Wait for Supplier',
+    Rejected = 'Rejected',
+    Completed = 'Completed',
     Pending = 'Pending',
-    Reject = 'Reject',
+    Inprocess = 'In Process'
 }
 
 @Entity({ schema: 'dbo', name: 'qpr' })
@@ -130,23 +135,80 @@ export class QprEntity {
     @Column({ type: 'nvarchar', name: 'delay_document', default: "Quick Report" })
     delayDocument: "8D Report" | "Quick Report"
 
-    @Column({ name: 'quick_report_status', default: ReportStatus.Pending })
+    @Column({ name: 'quick_report_status', default: ReportStatus.WaitForSupplier })
     quickReportStatus: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ name: 'quick_report_status_checker_1', nullable: true })
+    quickReportStatusChecker1: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ type: 'datetime2', name: 'quick_report_date_checker_1', nullable: true })
+    quickReportDateChecker1: Date | null; // วันที่ของ Quick Report
+
+    @Column({ name: 'quick_report_status_checker_2',  nullable: true })
+    quickReportStatusChecker2: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ type: 'datetime2', name: 'quick_report_date_checker_2', nullable: true })
+    quickReportDateChecker2: Date | null; // วันที่ของ Quick Report
+
+    @Column({ name: 'eight_d_report_approver', nullable: true })
+    eightDReportApprover: string;
+
+    @Column({ name: 'quick_report_status_checker_3', nullable: true })
+    quickReportStatusChecker3: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ type: 'datetime2', name: 'quick_report_date_checker_3', nullable: true })
+    quickReportDateChecker3: Date | null; // วันที่ของ Quick Report
+
+    // 8d report 
+
+    @Column({ name: 'eight_d_status_checker_1', nullable: true })
+    eightDStatusChecker1: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ type: 'datetime2', name: 'eight_d_date_checker_1', nullable: true })
+    eightDDateChecker1: Date | null; // วันที่ของ Quick Report
+
+    @Column({ name: 'eight_d_status_checker_2',  nullable: true })
+    eightDStatusChecker2: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ type: 'datetime2', name: 'eight_d_date_checker_2', nullable: true })
+    eightDDateChecker2: Date | null; // วันที่ของ Quick Report
+
+    @Column({ name: 'eight_d_status_checker_3', nullable: true })
+    eightDStatusChecker3: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ type: 'datetime2', name: 'eight_d_date_checker_3', nullable: true })
+    eightDDateChecker3: Date | null; // วันที่ของ Quick Report
+
+
+    @Column({ name: 'quick_report_status_for_supplier', default: ReportStatus.Pending })
+    quickReportSupplierStatus: ReportStatus; // เช่น Approved หรือ Pending
 
     @Column({ type: 'datetime2', name: 'quick_report_date', nullable: true })
     quickReportDate: Date | null; // วันที่ของ Quick Report
 
-    @Column({ name: 'eight_d_report_status', default: ReportStatus.Pending })
-    eightDReportStatus: ReportStatus; // เช่น Approved หรือ Pending
+    @Column({ type: 'datetime2', name: 'quick_report_date_for_supplier', nullable: true })
+    quickReportSupplierDate: Date | null; // วันที่ของ Quick Report
+
+    @Column({ name: 'eight_d_report_status', nullable: true })
+    eightDReportStatus?: ReportStatus; // เช่น Approved หรือ Pending
+
+    @Column({ name: 'eight_d_report_status_for_supplier', nullable: true })
+    eightDReportSupplierStatus?: ReportStatus; // เช่น Approved หรือ Pending
 
     @Column({ type: 'datetime2', name: 'eight_d_report_date', nullable: true })
     eightDReportDate: Date | null; // วันที่ของ 8D Report
 
-    @Column({ name: 'status', default: 'In Progress' })
-    status: 'In Progress' | 'Completed'; // เช่น Completed, In Progress, หรืออื่น ๆ
+    @Column({ type: 'datetime2', name: 'eight_d_report_date_for_supplier', nullable: true })
+    eightDReportSupplierDate: Date | null; // วันที่ของ 8D Report
+
+    @Column({ name: 'status', default: ReportStatus.WaitForSupplier })
+    status: ReportStatus; // เช่น Completed, In Progress, หรืออื่น ๆ
 
     @Column({ type: 'nvarchar', name: '_activeRow', length: 1, nullable: false, default: ActiveStatus.YES })
     activeRow: ActiveStatus;
+
+    @Column({ type: 'simple-json' , nullable: true })
+    objectQPRSupplier: SaveObjectQPR[];
 
     @CreateDateColumn({ type: "datetime", name: "created_at" })
     createdAt: Date; // วันที่สร้างข้อมูล

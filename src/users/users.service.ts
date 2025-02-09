@@ -214,7 +214,6 @@ export class UsersService {
             .andWhere('CAST(user._activeRow AS NVARCHAR) = :activeRow', { activeRow: 'Y' })
             .andWhere('supplierId IS NULL')
             .getOne();
-
         if (user && await bcrypt.compare(plainPassword, user.password)) {
             return user;
         }
@@ -229,8 +228,6 @@ export class UsersService {
             .andWhere('CAST(user._activeRow AS NVARCHAR) = :activeRow', { activeRow: 'Y' })
             .andWhere('supplierId IS NOT NULL')
             .getOne();
-
-        console.log('user' , user , plainPassword, await bcrypt.compare(plainPassword, user.password))
         if (user && await bcrypt.compare(plainPassword, user.password)) {
             return user;
         }

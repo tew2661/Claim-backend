@@ -20,6 +20,14 @@ export class GetQprDto {
     @IsOptional()
     status?: string;
 
+    @IsString()
+    @IsOptional()
+    supplier?: string;
+
+    @IsString()
+    @IsOptional()
+    page?: 'qpr-report' | '8d-report';
+
     @Expose()
     @IsNumber()
     @Type(() => Number)
