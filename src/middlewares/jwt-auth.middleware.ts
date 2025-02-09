@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
+import { BadGatewayException, CanActivate, ExecutionContext, ForbiddenException, Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from 'src/users/users.service';
@@ -42,17 +42,19 @@ export class JwtAuthGuard implements CanActivate {
 export class JwtAuthMiddlewareImageUser implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     // ดึง token จาก headers
-    const token = req.cookies['access_token'];
-
-    if (!token) {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
       throw new UnauthorizedException('No token provided');
     }
+
+    const token = authHeader.split(' ')[1];
 
     try {
       jwt.verify(token, process.env.NEST_JWT_SECRET);
       next();
     } catch (err) {
-      throw new UnauthorizedException('Invalid or expired Access Token');
+      throw new BadGatewayException('Invalid or expired Access Token');
     }
   }
 }

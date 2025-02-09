@@ -3,6 +3,9 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as bodyParser from 'body-parser';
+import { configPath } from './path-files-config';
+import { join } from 'node:path';
+import { JwtAuthMiddlewareImageUser } from './middlewares/jwt-auth.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -22,6 +25,14 @@ async function bootstrap() {
 
   app.use(bodyParser.json({ limit: '50mb' }));
   app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+  app.use(`/api/v1/${configPath.pathStaticFiles}`, new JwtAuthMiddlewareImageUser().use);
+  app.useStaticAssets(join(__dirname, '..', ...configPath.pathStaticFiles.split('/')), {
+    prefix: `/api/v1/${configPath.pathStaticFiles}/`, // URL path ที่สามารถเข้าถึงได้
+  });
+
+  console.log(join(__dirname, '..', ...configPath.pathStaticFiles.split('/')))
+  
 
   // app.use(cookieParser());
   await app.listen(process.env.NEST_PORT ?? 3000);

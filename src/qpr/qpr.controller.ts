@@ -5,7 +5,7 @@ import { QprService } from './qpr.service';
 import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { GetQprDto } from './dto/get-qpr.dto';
-import { SaveChecker1, SaveChecker2, SaveChecker3, SaveObjectQPR } from './dto/action-supplier.dto';
+import { Object8DReportDto, Save8DChecker1, Save8DChecker2, Save8DChecker3, SaveChecker1, SaveChecker2, SaveChecker3, SaveObjectQPR } from './dto/action-supplier.dto';
 
 @Controller('qpr')
 export class QprController {
@@ -90,5 +90,65 @@ export class QprController {
         @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
         return this.qprService.SaveChecker3(id, saveChecker3, actionBy);
+    }
+
+    @Put('8d-report/draft/:id')
+    @UseGuards(JwtAuthGuard)
+    async eDReportDraft(
+        @Body() object8DReportDto : Object8DReportDto[],
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.qprService.SaveDraftObject8DReport(id, object8DReportDto, actionBy);
+    }
+
+    @Put('8d-report/completed/:id')
+    @UseGuards(JwtAuthGuard)
+    async eDReportCompleted(
+        @Body() object8DReportDto : Object8DReportDto[],
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.qprService.SaveCompletedObject8DReport(id, object8DReportDto, actionBy);
+    }
+
+    @Put('8d-report/checker1/:id')
+    @UseGuards(JwtAuthGuard)
+    async eDReportChecker1(
+        @Body() save8DChecker1 : Save8DChecker1,
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.qprService.Save8DChecker1(id, save8DChecker1, actionBy);
+    }
+
+    @Put('8d-report/checker2/:id')
+    @UseGuards(JwtAuthGuard)
+    async eDReportChecker2(
+        @Body() save8DChecker2 : Save8DChecker2,
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.qprService.Save8DChecker2(id, save8DChecker2, actionBy);
+    }
+
+    @Put('8d-report/checker3/:id')
+    @UseGuards(JwtAuthGuard)
+    async eDReportChecker3(
+        @Body() save8DChecker3 : Save8DChecker3,
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.qprService.Save8DChecker3(id, save8DChecker3, actionBy);
+    }
+
+    @Put('8d-report/checker3-completed/:id')
+    @UseGuards(JwtAuthGuard)
+    async eDReportChecker3Completed(
+        @Body() save8DChecker3 : Save8DChecker3,
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.qprService.Save8DChecker3(id, save8DChecker3, actionBy, true);
     }
 }

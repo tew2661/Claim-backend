@@ -14,8 +14,10 @@ const saveBase64File = async (base64String: string, basePath: string, filenamePr
         base64Data = matches[2];
         const mimeType = matches[1];
 
-        if (!mimeType.startsWith('image/')) {
-            throw new BadGatewayException("Invalid file type. Only image files are allowed.")
+        const allowedMimeTypes = ['image/', 'application/pdf'];
+
+        if (!allowedMimeTypes.some(type => mimeType.startsWith(type))) {
+            throw new BadGatewayException("Invalid file type. Only image and PDF files are allowed.");
         }
 
         if (mimeType === 'image/jpeg') {
@@ -48,6 +50,8 @@ const saveBase64File = async (base64String: string, basePath: string, filenamePr
             ext = 'jxr';
         } else if (mimeType === 'image/vnd.adobe.photoshop') {
             ext = 'psd';
+        } else if (mimeType === 'application/pdf') {
+            ext = 'pdf';
         } else {
             ext = 'png'; // ค่าเริ่มต้นหากไม่มีการแมปที่ตรงกัน
         }

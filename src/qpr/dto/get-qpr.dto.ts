@@ -10,6 +10,10 @@ export class GetQprDto {
 
     @IsString()
     @IsOptional()
+    reportType?: string
+
+    @IsString()
+    @IsOptional()
     qprNo?: string;
 
     @IsString()

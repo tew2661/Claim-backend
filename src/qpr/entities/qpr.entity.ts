@@ -10,7 +10,7 @@ import {
     ManyToOne,
     UpdateDateColumn,
 } from 'typeorm';
-import { SaveObjectQPR } from '../dto/action-supplier.dto';
+import { Object8DReportDto, SaveObjectQPR } from '../dto/action-supplier.dto';
 
 export enum ActiveStatus {
     YES = 'Y',
@@ -209,6 +209,9 @@ export class QprEntity {
 
     @Column({ type: 'simple-json' , nullable: true })
     objectQPRSupplier: SaveObjectQPR[];
+
+    @Column({ type: 'simple-json' , nullable: true })
+    object8DReportDto: Object8DReportDto[];
 
     @CreateDateColumn({ type: "datetime", name: "created_at" })
     createdAt: Date; // วันที่สร้างข้อมูล
