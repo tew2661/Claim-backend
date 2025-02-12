@@ -54,7 +54,7 @@ export class JwtAuthMiddlewareImageUser implements NestMiddleware {
       jwt.verify(token, process.env.NEST_JWT_SECRET);
       next();
     } catch (err) {
-      throw new BadGatewayException('Invalid or expired Access Token');
+      throw new UnauthorizedException('Invalid or expired Access Token');
     }
   }
 }

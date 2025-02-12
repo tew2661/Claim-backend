@@ -179,9 +179,14 @@ export class QprService {
                 if (fileObj.file?.new && !fileObj.file?.delete) {
                     fileObj.file.file = await saveBase64File(fileObj.file.file, basePath, fileObj.file.name);
                     fileObj.file.new = false;
+                    fileObj.file.edit = false;
                     newSketches.push(fileObj);
-                }
-                if (!fileObj.file?.delete) {
+                } else if (fileObj.file?.edit && !fileObj.file?.delete) {
+                    fileObj.file.file = await saveBase64File(fileObj.file.file, basePath, fileObj.file.name);
+                    fileObj.file.new = false;
+                    fileObj.file.edit = false;
+                    newSketches.push(fileObj);
+                } else if (!fileObj.file?.delete) {
                     newSketches.push(fileObj);
                 }
             }
@@ -254,9 +259,14 @@ export class QprService {
                 if (fileObj.file?.new && !fileObj.file?.delete) {
                     fileObj.file.file = await saveBase64File(fileObj.file.file, basePath, fileObj.file.name);
                     fileObj.file.new = false;
+                    fileObj.file.edit = false;
                     newSketches.push(fileObj);
-                }
-                if (!fileObj.file?.delete) {
+                } else if (fileObj.file?.edit && !fileObj.file?.delete) {
+                    fileObj.file.file = await saveBase64File(fileObj.file.file, basePath, fileObj.file.name);
+                    fileObj.file.new = false;
+                    fileObj.file.edit = false;
+                    newSketches.push(fileObj);
+                } else if (!fileObj.file?.delete) {
                     newSketches.push(fileObj);
                 }
             }
@@ -711,7 +721,7 @@ export class QprService {
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
                 delayDocument: "8D Report",
-                eightDReportStatus: ReportStatus.WaitForSupplier,
+                eightDReportStatus: ReportStatus.Pending,
                 eightDStatusChecker3: ReportStatus.Pending,
                 eightDDateChecker3: new Date(),
             } : {
@@ -720,7 +730,7 @@ export class QprService {
                 eightDReportDate: new Date(),
                 status: completed ? ReportStatus.Completed : ReportStatus.Approved,
 
-                eightDStatusChecker3: ReportStatus.Completed,
+                eightDStatusChecker3: completed ? ReportStatus.Completed : ReportStatus.Approved,
                 eightDDateChecker3: new Date(),
             },
             

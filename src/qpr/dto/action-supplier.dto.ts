@@ -16,6 +16,10 @@ class SketchFile {
 
     @IsOptional()
     @IsBoolean()
+    edit?: boolean
+
+    @IsOptional()
+    @IsBoolean()
     delete?: boolean
 }
 
