@@ -7,5 +7,5 @@ socket.on('create-ticket', (data) => {
 });
 
 socket.on('get-ticket', (data) => {
-    console.log('Ticket get:', data);
-  });
+  console.log('Ticket get:', data);
+});

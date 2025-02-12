@@ -1,11 +1,13 @@
 // src/qpr/qpr.controller.ts
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, Req, Res, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { CreateQprDto } from './dto/create-qpr.dto';
 import { QprService } from './qpr.service';
 import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { GetQprDto } from './dto/get-qpr.dto';
 import { Object8DReportDto, Save8DChecker1, Save8DChecker2, Save8DChecker3, SaveChecker1, SaveChecker2, SaveChecker3, SaveObjectQPR } from './dto/action-supplier.dto';
+import { Response } from 'express';
+import * as moment from 'moment';
 
 @Controller('qpr')
 export class QprController {
@@ -20,6 +22,59 @@ export class QprController {
     ) {
         // เรียกใช้ service เพื่อจัดการการสร้าง QPR
         return await this.qprService.create(createQprDto, actionBy);
+    }
+
+    @Get('pdf/view-8d/:id')
+    @UseGuards(JwtAuthGuard)
+    async ViewFile8D(
+        @Res() res: Response,
+        @Param('id' , ParseIntPipe) id: number,
+    ) {
+        const data = await this.qprService.findId(id);
+        const pdfBytes1 = await this.qprService.ViewFile8D(id);
+
+        res.setHeader('Content-Type', `'application/pdf'`);
+        res.setHeader('Content-Disposition', `inline; filename=${data.qprIssueNo}.pdf`);
+        res.setHeader('Access-Control-Expose-Headers', 'File-Name, Content-Disposition');
+        res.setHeader('File-Name', `${data.qprIssueNo}.pdf`);
+        // Send the PDF content to the client for viewing
+        res.send(Buffer.from(pdfBytes1));
+    }
+
+    @Get('pdf/view/:id')
+    @UseGuards(JwtAuthGuard)
+    async ViewPdf(
+        @Res() res: Response,
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        const data = await this.qprService.findId(id);
+        const pdfBytes1 = await this.qprService.PdfView(data, actionBy, true);
+
+        res.setHeader('Content-Type', `'application/pdf'`);
+        res.setHeader('Content-Disposition', `inline; filename=${data.qprIssueNo}.pdf`);
+        res.setHeader('Access-Control-Expose-Headers', 'File-Name, Content-Disposition');
+        res.setHeader('File-Name', `${data.qprIssueNo}.pdf`);
+        // Send the PDF content to the client for viewing
+        res.send(Buffer.from(pdfBytes1));
+    }
+
+    @Get('pdf/download/:id')
+    @UseGuards(JwtAuthGuard)
+    async DownloadPdf(
+        @Res() res: Response,
+        @Param('id' , ParseIntPipe) id: number,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        const data = await this.qprService.findId(id);
+        const pdfBytes1 = await this.qprService.PdfView(data, actionBy);
+
+        res.setHeader('Content-Type', `'application/pdf'`);
+        res.setHeader('Content-Disposition', `inline; filename=${data.qprIssueNo}.pdf`);
+        res.setHeader('Access-Control-Expose-Headers', 'File-Name, Content-Disposition');
+        res.setHeader('File-Name', `${data.qprIssueNo}.pdf`);
+        // Send the PDF content to the client for viewing
+        res.send(Buffer.from(pdfBytes1));
     }
 
     @Get(':id')
@@ -151,4 +206,6 @@ export class QprController {
     ) {
         return this.qprService.Save8DChecker3(id, save8DChecker3, actionBy, true);
     }
+
+    
 }

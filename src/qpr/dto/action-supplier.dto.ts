@@ -77,7 +77,20 @@ export class SaveChecker1 {
     complain: boolean
 
     @IsString()
-    replay: string
+    @IsOptional()
+    resummit?: string
+
+    @IsString()
+    @IsOptional()
+    replay?: string
+
+    @IsString()
+    @IsOptional()
+    updatedBy?: string
+
+    @IsString()
+    @IsOptional()
+    updatedAt?: string
 }
 
 export class SaveChecker2 extends SaveChecker1 {
@@ -114,6 +127,12 @@ export class SaveObjectQPR {
     @ValidateNested()
     @Type(() => SaveChecker2)
     checker2?: SaveChecker2;
+
+    @IsOptional()
+    @IsObject()
+    @ValidateNested()
+    @Type(() => SaveChecker3)
+    checker3?: SaveChecker3;
 }
 
 export class UploadSectionDto {

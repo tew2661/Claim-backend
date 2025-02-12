@@ -10,7 +10,8 @@ COPY . .
 # Set timezone
 RUN ln -sf /usr/share/zoneinfo/Asia/Bangkok /etc/localtime
 
-RUN npm i
+RUN npm install
+RUN npm install sharp --platform=linux --arch=x64
 
 # Expose the port the app runs on
 EXPOSE 3000
