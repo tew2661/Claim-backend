@@ -343,6 +343,7 @@ export class QprService {
             ...body.approve == "reject" ? {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
+                replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {},
             quickReportStatusChecker1: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker1: new Date(),
@@ -378,6 +379,7 @@ export class QprService {
             ...body.approve == "reject" ? {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
+                replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {},
             quickReportStatusChecker2: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker2: new Date(),
@@ -417,6 +419,7 @@ export class QprService {
                 quickReportSupplierDate: new Date(),
                 delayDocument: "Quick Report",
                 quickReportStatus: ReportStatus.WaitForSupplier,
+                replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {
                 delayDocument: "8D Report",
                 quickReportStatus: ReportStatus.Approved,
@@ -854,7 +857,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.replyQuickAction ? moment(data.replyQuickAction).format('DD MMMM YYYY'): '', {
+        page.drawText(data.replyQuickAction ? moment(data.replyQuickAction).format('DD MMMM YYYY HH:mm'): '', {
             x: 485,
             y: 730,
             size: 7,
@@ -1274,7 +1277,7 @@ export class QprService {
                 const iconImage = await pdfDoc.embedJpg(iconBytes);   
                 page.drawImage(iconImage, {
                     x: 90 + 160 + 160,   // X-coordinate for the image
-                    y: 340,  // Y-coordinate for the image
+                    y: 320,  // Y-coordinate for the image
                     width: 120,  // Scale the icon width
                     height: 120, // Scale the icon height
                 });
