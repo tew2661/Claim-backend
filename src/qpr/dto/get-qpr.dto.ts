@@ -30,7 +30,7 @@ export class GetQprDto {
 
     @IsString()
     @IsOptional()
-    page?: 'qpr-report' | '8d-report';
+    page?: 'qpr-report' | '8d-report' | 'checker1' | 'checker2' | 'checker3' ;
 
     @Expose()
     @IsNumber()

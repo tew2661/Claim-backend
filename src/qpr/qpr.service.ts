@@ -154,8 +154,6 @@ export class QprService {
     }
 
     async SaveDraftObjectQPR(id: number, query: SaveObjectQPR[], actionBy: UsersEntity) {
-        console.log('query', query);
-
         const check = await this.qprRepository.findOne({ where: { id, activeRow: ActiveStatus.YES } });
 
         if (!check) {
@@ -232,6 +230,10 @@ export class QprService {
             eightDStatusChecker3: null,
             updatedBy: actionBy,
         });
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        return newValue;
     }
 
 
@@ -315,6 +317,10 @@ export class QprService {
             eightDStatusChecker3: null,
             updatedBy: actionBy,
         });
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        return newValue;
     }
 
     async SaveChecker1(id: number, body: SaveChecker1, actionBy: UsersEntity) {
@@ -342,6 +348,13 @@ export class QprService {
             quickReportDateChecker1: new Date(),
             updatedBy: actionBy
         })
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        if (body.approve == "reject") {
+            this.myGatewayGateway.sendMessage('reload-status-reject-qpr', newValue);
+        }
+        return newValue;
 
     }
 
@@ -371,6 +384,13 @@ export class QprService {
             eightDReportApprover: body.eightDReportApprover,
             updatedBy: actionBy
         })
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        if (body.approve == "reject") {
+            this.myGatewayGateway.sendMessage('reload-status-reject-qpr', newValue);
+        }
+        return newValue;
 
     }
 
@@ -410,6 +430,13 @@ export class QprService {
             eightDReportSupplierDate: new Date(),
             updatedBy: actionBy
         })
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        if (body.approve == "reject") {
+            this.myGatewayGateway.sendMessage('reload-status-reject-qpr', newValue);
+        }
+        return newValue;
 
     }
 
@@ -505,6 +532,10 @@ export class QprService {
             eightDStatusChecker3: null,
             updatedBy: actionBy,
         });
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        return newValue;
     }
 
     async SaveCompletedObject8DReport(id: number, query: Object8DReportDto[], actionBy: UsersEntity) {
@@ -583,6 +614,10 @@ export class QprService {
             status: ReportStatus.Inprocess,
             updatedBy: actionBy,
         });
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        return newValue;
     }
 
     async Save8DChecker1(id: number, body: Save8DChecker1, actionBy: UsersEntity) {
@@ -631,6 +666,13 @@ export class QprService {
             eightDDateChecker1: new Date(),
             updatedBy: actionBy
         })
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        if (_status == "reject") {
+            this.myGatewayGateway.sendMessage('reload-status-reject-8d', newValue);
+        }
+        return newValue;
 
     }
 
@@ -681,6 +723,13 @@ export class QprService {
             eightDDateChecker2: new Date(),
             updatedBy: actionBy
         })
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        if (_status == "reject") {
+            this.myGatewayGateway.sendMessage('reload-status-reject-8d', newValue);
+        }
+        return newValue;
 
     }
 
@@ -743,6 +792,13 @@ export class QprService {
             
             updatedBy: actionBy
         })
+
+        const newValue = await this.findId(id)
+        this.myGatewayGateway.sendMessage('reload-status', newValue);
+        if (_status == "reject") {
+            this.myGatewayGateway.sendMessage('reload-status-reject-8d', newValue);
+        }
+        return newValue;
 
     }
 
