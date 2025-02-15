@@ -4,7 +4,7 @@ import { CreateQprDto } from './dto/create-qpr.dto';
 import { QprService } from './qpr.service';
 import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 import { UsersEntity } from 'src/users/entities/users.entity';
-import { GetQprDto } from './dto/get-qpr.dto';
+import { ExportExcelDto, GetQprDto } from './dto/get-qpr.dto';
 import { Object8DReportDto, Save8DChecker1, Save8DChecker2, Save8DChecker3, SaveChecker1, SaveChecker2, SaveChecker3, SaveObjectQPR } from './dto/action-supplier.dto';
 import { Response } from 'express';
 import * as moment from 'moment';
@@ -22,6 +22,15 @@ export class QprController {
     ) {
         // เรียกใช้ service เพื่อจัดการการสร้าง QPR
         return await this.qprService.create(createQprDto, actionBy);
+    }
+
+    @Get('summary-report/exportExcel')
+    // @UseGuards(JwtAuthGuard)
+    async findPaginationAll(
+        @Query() query: ExportExcelDto,
+        @Res() response: Response
+    ) {
+        return await this.qprService.exportDataToExcel(response, query);
     }
 
     @Get('pdf/view-8d/:id')
@@ -77,6 +86,15 @@ export class QprController {
         res.send(Buffer.from(pdfBytes1));
     }
 
+    @Get('delay')
+    @UseGuards(JwtAuthGuard)
+    async findAllDelay(@Query() Query : GetQprDto) {
+        return {
+            statusCode: 200,
+            ...await this.qprService.findAllDelay(Query)
+        }
+    }
+
     @Get(':id')
     @UseGuards(JwtAuthGuard)
     async findIdAll(
@@ -84,6 +102,7 @@ export class QprController {
     ) {
         return await this.qprService.findId(id);
     }
+    
 
     @Get()
     @UseGuards(JwtAuthGuard)

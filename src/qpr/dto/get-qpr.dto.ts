@@ -2,8 +2,7 @@ import { ApiProperty } from "@nestjs/swagger";
 import { Expose, Type } from "class-transformer";
 import { IsNumber, IsOptional, IsString } from "class-validator";
 
-export class GetQprDto {
-
+export class ExportExcelDto {
     @IsString()
     @IsOptional()
     date?: string;
@@ -30,8 +29,10 @@ export class GetQprDto {
 
     @IsString()
     @IsOptional()
-    page?: 'qpr-report' | '8d-report' | 'checker1' | 'checker2' | 'checker3' ;
+    page?: 'qpr-report' | '8d-report' | 'checker1' | 'checker2' | 'checker3' | 'delay' ;
+}
 
+export class GetQprDto extends ExportExcelDto {
     @Expose()
     @IsNumber()
     @Type(() => Number)

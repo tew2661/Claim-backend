@@ -3,12 +3,12 @@ import { ActiveStatus } from './../users/entities/users.entity';
 import { BadGatewayException, BadRequestException, Injectable, NotAcceptableException, NotFoundException } from '@nestjs/common';
 import { CreateQprDto } from './dto/create-qpr.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Like, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, LessThan, Like, MoreThan, Not, Repository } from 'typeorm';
 import { QprEntity, ReportStatus } from './entities/qpr.entity';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { configPath } from 'src/path-files-config';
 import { saveBase64File } from 'src/convert-base64-img';
-import { GetQprDto } from './dto/get-qpr.dto';
+import { ExportExcelDto, GetQprDto } from './dto/get-qpr.dto';
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 import { MyGatewayGateway } from 'src/my-gateway/my-gateway.gateway';
 import * as moment from 'moment';
@@ -16,6 +16,8 @@ import { Object8DReportDto, Save8DChecker1, Save8DChecker2, Save8DChecker3, Save
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { PDFDocument, PDFPage, degrees, rgb } from 'pdf-lib';
+import { Response } from 'express';
+import * as ExcelJS from 'exceljs';
 import * as fontkit from '@pdf-lib/fontkit';
 import * as sharp from 'sharp';
 import * as fs from 'fs';
@@ -124,7 +126,7 @@ export class QprService {
             relations: ['supplier'],
             skip: query.offset,
             take: query.limit,
-            where: {
+            where: [{
                 ...query.date ? {
                     dateReported: Between(
                         moment(moment(query.date).format('YYYY-MM-DD 00:00:00')).toDate(),
@@ -146,11 +148,41 @@ export class QprService {
                 ...query.reportType && query.reportType == 'quick-report' ? { delayDocument: "Quick Report" } : {},
                 ...query.reportType && query.reportType == '8d-report' ? { delayDocument: "8D Report" } : {},
                 activeRow: ActiveStatus.YES,
-            },
+            }],
             order: {
                 createdAt: 'DESC'
             }
         });
+    }
+
+    async findAllDelay(query: GetQprDto) {
+        const where: FindOptionsWhere<QprEntity> | FindOptionsWhere<QprEntity>[] = [{
+            ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
+            ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
+            delayDocument: 'Quick Report',
+            replyQuickAction: LessThan(new Date()),
+            quickReportSupplierStatus: Not(ReportStatus.Approved),
+            activeRow: ActiveStatus.YES,
+        },{
+            ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
+            ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
+            delayDocument: '8D Report',
+            replyReport: LessThan(new Date()),
+            eightDReportSupplierStatus: Not(ReportStatus.Approved),
+            activeRow: ActiveStatus.YES,
+        }]
+    
+        const [data, total] = await this.qprRepository.findAndCount({
+            relations: ['supplier'],
+            skip: query.offset,
+            take: query.limit,
+            where,
+            order: {
+                createdAt: 'DESC'
+            }
+        });
+    
+        return { data, total };
     }
 
     async SaveDraftObjectQPR(id: number, query: SaveObjectQPR[], actionBy: UsersEntity) {
@@ -344,7 +376,9 @@ export class QprService {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
                 replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
-            } : {},
+            } : {
+
+            },
             quickReportStatusChecker1: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker1: new Date(),
             updatedBy: actionBy
@@ -424,6 +458,7 @@ export class QprService {
                 delayDocument: "8D Report",
                 quickReportStatus: ReportStatus.Approved,
                 quickReportDate: new Date(),
+                replyReport: body.replay ? moment(body.replay).toDate() : null,
             },
             quickReportStatusChecker3: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker3: new Date(),
@@ -746,14 +781,18 @@ export class QprService {
         const arrObject = check.object8DReportDto.length - 1;
 
         let _status = 'approve';
+        let approve8dAndRejectDocOther: ActiveStatus = ActiveStatus.NO
         if (body.documentOther.filter((x) => x.approve == 'reject').length > 0) {
             _status = 'reject';
+            approve8dAndRejectDocOther = ActiveStatus.YES;
         } else if (body.approve == 'reject') {
             _status = 'reject';
         } else if (body.reqDocumentOther) {
             _status = 'reject';
+            approve8dAndRejectDocOther = ActiveStatus.YES;
         } else if (body.dueDateReqDocumentOther) {
             _status = 'reject';
+            approve8dAndRejectDocOther = ActiveStatus.YES;
         }
 
         await this.qprRepository.update(id, {
@@ -777,6 +816,7 @@ export class QprService {
             // quickReportDate: new Date(),
             ..._status == "reject" ? {
                 status: ReportStatus.WaitForSupplier,
+                approve8dAndRejectDocOther,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
                 delayDocument: "8D Report",
@@ -1677,4 +1717,82 @@ export class QprService {
             throw new BadRequestException(e.message || 'An error occurred while processing the PDF.');
         }
     }
+
+    async exportDataToExcel(response: Response, query: ExportExcelDto): Promise<void> {
+        const dataexport: QprEntity[] = await this.qprRepository.find({
+            relations: ['supplier'],
+            where: {
+                ...query.date ? {
+                    dateReported: Between(
+                        moment(moment(query.date).format('YYYY-MM-DD 00:00:00')).toDate(),
+                        moment(moment(query.date).format('YYYY-MM-DD 23:59:59')).toDate(),
+                    )
+                } : {},
+                ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
+                ...query.severity ? { importanceLevel: query.severity } : {},
+                ...query.status && query.status == 'approved-quick-report' ? { quickReportStatus: ReportStatus.Approved } : {},
+                ...query.status && query.status == 'wait-for-supplier-quick-report' ? { quickReportStatus: ReportStatus.WaitForSupplier } : {},
+                ...query.status && query.status == 'rejected-quick-report' ? { quickReportStatus: ReportStatus.Rejected } : {},
+                ...query.status && query.status == 'approved-8d-report' ? { eightDReportStatus: ReportStatus.Approved } : {},
+                ...query.status && query.status == 'wait-for-supplier-8d-report' ? { eightDReportStatus: ReportStatus.WaitForSupplier } : {},
+                ...query.status && query.status == 'rejected-8d-report' ? { eightDReportStatus: ReportStatus.Rejected } : {},
+                ...query.page && query.page == '8d-report' ? { quickReportStatus: ReportStatus.Approved } : {},
+                ...query.page && query.page == '8d-report' ? { delayDocument: "8D Report" } : {},
+                ...query.page && query.page == 'qpr-report' ? { delayDocument: "Quick Report" } : {},
+                ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
+                ...query.reportType && query.reportType == 'quick-report' ? { delayDocument: "Quick Report" } : {},
+                ...query.reportType && query.reportType == '8d-report' ? { delayDocument: "8D Report" } : {},
+                activeRow: ActiveStatus.YES,
+            },
+            order: {
+                createdAt: 'DESC'
+            }
+        });
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('DataSheet');
+    
+        const fomatExport = dataexport.map((x) => {
+            return {
+                id: x.id,
+                qprNo: x.qprIssueNo || '',
+                supplier: x.supplier?.supplierName || '',
+                problem: x.defectiveContents.problemCase || '',
+                importance: (x.importanceLevel || '') + (x.urgent ? ` (Urgent)` : ''),
+                status: x.status,
+                quickReport: `${x.quickReportDate ?
+                    `${moment(x.quickReportDate).format('DD/MM/YYYY HH:mm:ss')}` : ""} ${x.quickReportStatus ? ` (${x.quickReportStatus})` : ''}`,
+                report8D: `${x.eightDReportDate ? moment(x.eightDReportDate).format('DD/MM/YYYY HH:mm:ss') : ''} ${x.eightDReportStatus ? ` (${x.eightDReportStatus})` : '-'}`,
+            }
+        })
+        // กำหนด Header ของ Excel
+        worksheet.columns = [
+          { header: 'Qpr No', key: 'qprNo', width: 10 },
+          { header: 'Supplier', key: 'supplier', width: 20 },
+          { header: 'Problem', key: 'problem', width: 30 },
+          { header: 'Importance', key: 'importance', width: 12 },
+          { header: 'Status', key: 'status', width: 12 },
+          { header: 'Quick Report', key: 'quickReport', width: 20 },
+          { header: 'Report 8D', key: 'report8D', width: 20 },
+        ];
+    
+        // ใส่ข้อมูลลงใน Excel
+        fomatExport.forEach((item) => {
+          worksheet.addRow(item);
+        });
+    
+        // กำหนดชื่อไฟล์ Excel
+        response.setHeader(
+          'Content-Type',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+        response.setHeader(
+          'Content-Disposition',
+          'attachment; filename=export.xlsx',
+        );
+    
+        // บันทึกไฟล์และส่งกลับไปยัง client
+        await workbook.xlsx.write(response);
+        response.end();
+      }
 }
