@@ -379,7 +379,7 @@ export class QprService {
             } : {
 
             },
-            quickReportStatusChecker1: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
+            quickReportStatusChecker1: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
             quickReportDateChecker1: new Date(),
             updatedBy: actionBy
         })
@@ -415,7 +415,7 @@ export class QprService {
                 quickReportSupplierDate: new Date(),
                 replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {},
-            quickReportStatusChecker2: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
+            quickReportStatusChecker2: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
             quickReportDateChecker2: new Date(),
             eightDReportApprover: body.eightDReportApprover,
             updatedBy: actionBy
@@ -460,7 +460,7 @@ export class QprService {
                 quickReportDate: new Date(),
                 replyReport: body.replay ? moment(body.replay).toDate() : null,
             },
-            quickReportStatusChecker3: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
+            quickReportStatusChecker3: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
             quickReportDateChecker3: new Date(),
             // eightDReportApprover: body.eightDReportApprover,
 
@@ -560,7 +560,7 @@ export class QprService {
             eightDDateChecker1: null,
             eightDDateChecker2: null,
             eightDDateChecker3: null,
-            eightDReportApprover: null,
+            // eightDReportApprover: null,
             eightDReportDate: null,
             eightDReportStatus: null,
             eightDReportSupplierStatus: ReportStatus.Save,
@@ -640,15 +640,15 @@ export class QprService {
             object8DReportDto: object8DReportDto,
             eightDDateChecker1: null,
             eightDDateChecker2: null,
-            eightDDateChecker3: null,
-            eightDReportApprover: null,
+            ...check.approve8dAndRejectDocOther == 'N' ? { eightDDateChecker3 : null }: {},
+            // eightDReportApprover: null,
             eightDReportDate: new Date(),
             eightDReportStatus: ReportStatus.Pending,
             eightDReportSupplierStatus: ReportStatus.Approved,
             eightDReportSupplierDate: new Date(),
             eightDStatusChecker1: null,
             eightDStatusChecker2: null,
-            eightDStatusChecker3: null,
+            ...check.approve8dAndRejectDocOther == 'N' ? { eightDStatusChecker3 : null }: {},
             status: ReportStatus.Inprocess,
             updatedBy: actionBy,
         });
@@ -668,21 +668,9 @@ export class QprService {
         const arrObject = check.object8DReportDto.length - 1;
 
         let _status = 'approve';
-        if (body.documentOther.filter((x) => x.approve == 'reject').length > 0) {
-            console.log(1)
-            _status = 'reject';
-        } else if (body.approve == 'reject') {
-            console.log(2)
-            _status = 'reject';
-        } else if (body.reqDocumentOther) {
-            console.log(3)
-            _status = 'reject';
-        } else if (body.dueDateReqDocumentOther) {
-            console.log(4)
+        if (body.approve == 'reject') {
             _status = 'reject';
         }
-
-        console.log('_status , checker 1 , 8d' , _status , body)
 
         await this.qprRepository.update(id, {
             object8DReportDto: check.object8DReportDto.map((arr: Object8DReportDto, index) => {
@@ -700,7 +688,7 @@ export class QprService {
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
             } : {},
-            eightDStatusChecker1: _status == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
+            eightDStatusChecker1: _status == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
             eightDDateChecker1: new Date(),
             updatedBy: actionBy
         })
@@ -724,13 +712,7 @@ export class QprService {
         const arrObject = check.object8DReportDto.length - 1;
 
         let _status = 'approve';
-        if (body.documentOther.filter((x) => x.approve == 'reject').length > 0) {
-            _status = 'reject';
-        } else if (body.approve == 'reject') {
-            _status = 'reject';
-        } else if (body.reqDocumentOther) {
-            _status = 'reject';
-        } else if (body.dueDateReqDocumentOther) {
+        if (body.approve == 'reject') {
             _status = 'reject';
         }
 
@@ -753,12 +735,33 @@ export class QprService {
             status: ReportStatus.Inprocess,
             // quickReportStatus: ReportStatus.Approved,
             // quickReportDate: new Date(),
-            ..._status == "reject" ? {
+            ..._status == "reject" && check.approve8dAndRejectDocOther == 'N' ? {
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
             } : {},
-            eightDStatusChecker2: _status == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
-            eightDDateChecker2: new Date(),
+            ... _status == "approve" && check.approve8dAndRejectDocOther == 'N' ? {
+                eightDStatusChecker2: _status == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
+                eightDDateChecker2: new Date(),
+            }: {},
+            ..._status == "reject" && check.approve8dAndRejectDocOther == 'Y' ? {
+                status: ReportStatus.WaitForSupplier,
+                eightDReportSupplierStatus: ReportStatus.Rejected,
+                eightDReportSupplierDate: new Date(),
+                delayDocument: "8D Report",
+                eightDReportStatus: ReportStatus.Pending,
+                eightDStatusChecker2: ReportStatus.WaitForSupplier,
+                eightDDateChecker2: new Date(),
+            } : {},
+            ... _status == "approve" && check.approve8dAndRejectDocOther == 'Y' ? {
+                delayDocument: "8D Report",
+                eightDReportStatus: check.approve8dAndRejectDocOther == 'Y' ? ReportStatus.Completed : ReportStatus.Approved,
+                eightDReportDate: new Date(),
+                status: check.approve8dAndRejectDocOther == 'Y' ? ReportStatus.Completed : ReportStatus.Approved,
+                eightDStatusChecker3: ReportStatus.Approved,
+                eightDDateChecker3: new Date(),
+                eightDStatusChecker2: ReportStatus.Completed,
+                eightDDateChecker2: new Date(),
+            } : {},
             updatedBy: actionBy
         })
 
@@ -821,7 +824,7 @@ export class QprService {
                 eightDReportSupplierDate: new Date(),
                 delayDocument: "8D Report",
                 eightDReportStatus: ReportStatus.Pending,
-                eightDStatusChecker3: ReportStatus.Pending,
+                eightDStatusChecker3: ReportStatus.WaitForSupplier,
                 eightDDateChecker3: new Date(),
             } : {
                 delayDocument: "8D Report",
@@ -1127,7 +1130,7 @@ export class QprService {
 
         if (data.frequency && data.frequency.firstDefective) {
             page.drawImage(iconImage, {
-                x: 534,   // X-coordinate for the image
+                x: 514,   // X-coordinate for the image
                 y: 642,  // Y-coordinate for the image
                 width: 10,  // Scale the icon width
                 height: 10, // Scale the icon height
@@ -1136,16 +1139,24 @@ export class QprService {
 
         if (data.frequency && data.frequency.reoccurrence) {
             page.drawImage(iconImage, {
-                x: 534,   // X-coordinate for the image
+                x: 514,   // X-coordinate for the image
                 y: 630,  // Y-coordinate for the image
                 width: 10,  // Scale the icon width
                 height: 10, // Scale the icon height
+            });
+
+            page.drawText(`${data.frequency.reoccurrenceDetails ? data.frequency.reoccurrenceDetails : ''}`, {
+                x: 534,
+                y: 630,
+                size: 7,
+                font,
+                color: rgb(0, 0, 0),
             });
         }
 
         if (data.frequency && data.frequency.chronicDisease) {
             page.drawImage(iconImage, {
-                x: 534,   // X-coordinate for the image
+                x: 514,   // X-coordinate for the image
                 y: 615,  // Y-coordinate for the image
                 width: 10,  // Scale the icon width
                 height: 10, // Scale the icon height
