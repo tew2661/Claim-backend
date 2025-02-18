@@ -83,9 +83,9 @@ export class QprService {
     }
 
     async findId(id: number): Promise<QprEntity> {
-        const data = await this.qprRepository.findOne({ 
+        const data = await this.qprRepository.findOne({
             relations: ['supplier', 'createdBy'],
-            where: { id , activeRow: ActiveStatus.YES } 
+            where: { id, activeRow: ActiveStatus.YES }
         });
         if (!data) {
             throw new NotAcceptableException(`ไม่พบเอกสาร id: ${id} อยู่ในระบบ`);
@@ -163,7 +163,7 @@ export class QprService {
             replyQuickAction: LessThan(new Date()),
             quickReportSupplierStatus: Not(ReportStatus.Approved),
             activeRow: ActiveStatus.YES,
-        },{
+        }, {
             ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
             ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
             delayDocument: '8D Report',
@@ -171,7 +171,7 @@ export class QprService {
             eightDReportSupplierStatus: Not(ReportStatus.Approved),
             activeRow: ActiveStatus.YES,
         }]
-    
+
         const [data, total] = await this.qprRepository.findAndCount({
             relations: ['supplier'],
             skip: query.offset,
@@ -181,7 +181,7 @@ export class QprService {
                 createdAt: 'DESC'
             }
         });
-    
+
         return { data, total };
     }
 
@@ -366,7 +366,7 @@ export class QprService {
 
         await this.qprRepository.update(id, {
             objectQPRSupplier: check.objectQPRSupplier.map((arr: SaveObjectQPR, index) => {
-                if (index == arrObject) return { ...arr, objectQPR: { ...arr.objectQPR , remark: body.remark } , checker1: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') } }
+                if (index == arrObject) return { ...arr, objectQPR: { ...arr.objectQPR, remark: body.remark }, checker1: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') } }
                 else return arr
             }),
             status: ReportStatus.Inprocess,
@@ -404,7 +404,7 @@ export class QprService {
 
         await this.qprRepository.update(id, {
             objectQPRSupplier: check.objectQPRSupplier.map((arr: SaveObjectQPR, index) => {
-                if (index == arrObject) return { ...arr, objectQPR: { ...arr.objectQPR , remark: body.remark }, checker2: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') } }
+                if (index == arrObject) return { ...arr, objectQPR: { ...arr.objectQPR, remark: body.remark }, checker2: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') } }
                 else return arr
             }),
             status: ReportStatus.Inprocess,
@@ -441,11 +441,11 @@ export class QprService {
 
         await this.qprRepository.update(id, {
             objectQPRSupplier: check.objectQPRSupplier.map((arr: SaveObjectQPR, index) => {
-                if (index == arrObject) return { ...arr, objectQPR: { ...arr.objectQPR , remark: body.remark }, checker3: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') } }
+                if (index == arrObject) return { ...arr, objectQPR: { ...arr.objectQPR, remark: body.remark }, checker3: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') } }
                 else return arr
             }),
             status: ReportStatus.WaitForSupplier,
-            
+
             // quickReportStatus: ReportStatus.Pending,
             // quickReportDate: new Date(),
             ...body.approve == "reject" ? {
@@ -493,7 +493,7 @@ export class QprService {
         const existingDraft = object8DReportDto.find((item) => item.status === 'draft');
         const basePath = configPath.pathUploadSupplier8d;
 
-         // เช็คสถานะของ Quick Report
+        // เช็คสถานะของ Quick Report
         if (check.eightDReportStatus === ReportStatus.Approved) {
             throw new NotAcceptableException(`เอกสารนี้ถูก Approved แล้วโดย ${existingDraft?.actionBy}`);
         } else if (check.eightDReportStatus === ReportStatus.Completed) {
@@ -505,7 +505,7 @@ export class QprService {
         // อัปเดต sketches หากมีข้อมูลใหม่
         if (query[arrObject]?.object8D.uploadSections.length) {
             for (const fileObj of query[arrObject].object8D.uploadSections) {
-                console.log('fileObj.name' , fileObj.name)
+                console.log('fileObj.name', fileObj.name)
                 if ((fileObj?.new || fileObj?.edit) && !fileObj?.delete) {
                     fileObj.file = await saveBase64File(fileObj.file, basePath, fileObj.name);
                     fileObj.new = false;
@@ -525,33 +525,33 @@ export class QprService {
 
         if (query[arrObject].object8D.upload8DReport) {
             const currentFile = query[arrObject].object8D.upload8DReport.file;
-            const _currentFile = check.object8DReportDto && 
-                check.object8DReportDto.length && 
-                check.object8DReportDto[arrObject].object8D && 
-                check.object8DReportDto[arrObject].object8D.upload8DReport ? check.object8DReportDto[arrObject].object8D.upload8DReport.file : '' ; // ไฟล์ใหม่
+            const _currentFile = check.object8DReportDto &&
+                check.object8DReportDto.length &&
+                check.object8DReportDto[arrObject].object8D &&
+                check.object8DReportDto[arrObject].object8D.upload8DReport ? check.object8DReportDto[arrObject].object8D.upload8DReport.file : ''; // ไฟล์ใหม่
             const currentFileName = query[arrObject].object8D.upload8DReport.name; // ชื่อไฟล์ใหม่
-            const existingFilePath = join(__dirname, '..','..', ..._currentFile.split('/'));
+            const existingFilePath = join(__dirname, '..', '..', ..._currentFile.split('/'));
             console.log(existingFilePath)
             // ตรวจสอบว่าไฟล์เดิมมีอยู่หรือไม่
             if (existsSync(_currentFile && existingFilePath)) {
                 // ลบไฟล์เดิม
                 unlinkSync(existingFilePath);
             }
-        
+
             // บันทึกไฟล์ใหม่
             query[arrObject].object8D.upload8DReport = {
                 ...query[arrObject].object8D.upload8DReport,
                 file: await saveBase64File(currentFile, basePath, currentFileName),
             };
         }
-        
+
 
         // ถ้ามี Draft อยู่แล้ว → อัปเดตข้อมูลตัวเดิม
         if (existingDraft) {
             Object.assign(existingDraft, query[arrObject], { actionBy: actionBy.name });
         } else {
             // ถ้าไม่มี → เพิ่มใหม่เข้าไป
-            object8DReportDto.push({ ...query[arrObject], status: 'draft', actionBy: actionBy.name});
+            object8DReportDto.push({ ...query[arrObject], status: 'draft', actionBy: actionBy.name });
         }
 
         // อัปเดตใน Database
@@ -591,7 +591,7 @@ export class QprService {
         const existingDraft = object8DReportDto.find((item) => item.status === 'draft');
         const basePath = configPath.pathUploadSupplier8d;
 
-         // เช็คสถานะของ Quick Report
+        // เช็คสถานะของ Quick Report
         if (check.eightDReportStatus === ReportStatus.Approved) {
             throw new NotAcceptableException(`เอกสารนี้ถูก Approved แล้วโดย ${existingDraft?.actionBy}`);
         } else if (check.eightDReportStatus === ReportStatus.Completed) {
@@ -629,7 +629,7 @@ export class QprService {
 
         // ถ้ามี Draft อยู่แล้ว → อัปเดตข้อมูลตัวเดิม
         if (existingDraft) {
-            Object.assign(existingDraft, query[arrObject], { actionBy: actionBy.name , status: 'approve' });
+            Object.assign(existingDraft, query[arrObject], { actionBy: actionBy.name, status: 'approve' });
         } else {
             // ถ้าไม่มี → เพิ่มใหม่เข้าไป
             object8DReportDto.push({ ...query[arrObject], actionBy: actionBy.name, status: 'approve' });
@@ -640,7 +640,7 @@ export class QprService {
             object8DReportDto: object8DReportDto,
             eightDDateChecker1: null,
             eightDDateChecker2: null,
-            ...check.approve8dAndRejectDocOther == 'N' ? { eightDDateChecker3 : null }: {},
+            ...check.approve8dAndRejectDocOther == 'N' ? { eightDDateChecker3: null } : {},
             // eightDReportApprover: null,
             eightDReportDate: new Date(),
             eightDReportStatus: ReportStatus.Pending,
@@ -648,7 +648,7 @@ export class QprService {
             eightDReportSupplierDate: new Date(),
             eightDStatusChecker1: null,
             eightDStatusChecker2: null,
-            ...check.approve8dAndRejectDocOther == 'N' ? { eightDStatusChecker3 : null }: {},
+            ...check.approve8dAndRejectDocOther == 'N' ? { eightDStatusChecker3: null } : {},
             status: ReportStatus.Inprocess,
             updatedBy: actionBy,
         });
@@ -674,10 +674,10 @@ export class QprService {
 
         await this.qprRepository.update(id, {
             object8DReportDto: check.object8DReportDto.map((arr: Object8DReportDto, index) => {
-                if (index == arrObject) return { 
-                    ...arr, 
-                    object8D: { ...arr.object8D , remark: body.remark } , 
-                    checker1: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') } 
+                if (index == arrObject) return {
+                    ...arr,
+                    object8D: { ...arr.object8D, remark: body.remark },
+                    checker1: { ...body, updatedBy: actionBy.name, updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') }
                 }
                 else return arr
             }),
@@ -718,17 +718,17 @@ export class QprService {
 
         await this.qprRepository.update(id, {
             object8DReportDto: check.object8DReportDto.map((arr: Object8DReportDto, index) => {
-                if (index == arrObject) return { 
-                    ...arr, 
-                    object8D: { 
-                        ...arr.object8D , 
-                        remark: body.remark 
-                    }, 
-                    checker2: { 
-                        ...body, 
-                        updatedBy: actionBy.name, 
-                        updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') 
-                    } 
+                if (index == arrObject) return {
+                    ...arr,
+                    object8D: {
+                        ...arr.object8D,
+                        remark: body.remark
+                    },
+                    checker2: {
+                        ...body,
+                        updatedBy: actionBy.name,
+                        updatedAt: moment().format('YYYY-MM-DD HH:mm:ss')
+                    }
                 }
                 else return arr
             }),
@@ -739,10 +739,10 @@ export class QprService {
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
             } : {},
-            ... _status == "approve" && check.approve8dAndRejectDocOther == 'N' ? {
+            ..._status == "approve" && check.approve8dAndRejectDocOther == 'N' ? {
                 eightDStatusChecker2: _status == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
                 eightDDateChecker2: new Date(),
-            }: {},
+            } : {},
             ..._status == "reject" && check.approve8dAndRejectDocOther == 'Y' ? {
                 status: ReportStatus.WaitForSupplier,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
@@ -752,7 +752,7 @@ export class QprService {
                 eightDStatusChecker2: ReportStatus.WaitForSupplier,
                 eightDDateChecker2: new Date(),
             } : {},
-            ... _status == "approve" && check.approve8dAndRejectDocOther == 'Y' ? {
+            ..._status == "approve" && check.approve8dAndRejectDocOther == 'Y' ? {
                 delayDocument: "8D Report",
                 eightDReportStatus: check.approve8dAndRejectDocOther == 'Y' ? ReportStatus.Completed : ReportStatus.Approved,
                 eightDReportDate: new Date(),
@@ -800,21 +800,21 @@ export class QprService {
 
         await this.qprRepository.update(id, {
             object8DReportDto: check.object8DReportDto.map((arr: Object8DReportDto, index) => {
-                if (index == arrObject) return { 
-                    ...arr, 
-                    object8D: { 
-                        ...arr.object8D , 
-                        remark: body.remark 
-                    }, 
-                    checker3: { 
-                        ...body, 
-                        updatedBy: actionBy.name, 
-                        updatedAt: moment().format('YYYY-MM-DD HH:mm:ss') 
-                    } 
+                if (index == arrObject) return {
+                    ...arr,
+                    object8D: {
+                        ...arr.object8D,
+                        remark: body.remark
+                    },
+                    checker3: {
+                        ...body,
+                        updatedBy: actionBy.name,
+                        updatedAt: moment().format('YYYY-MM-DD HH:mm:ss')
+                    }
                 }
                 else return arr
             }),
-            
+
             // quickReportStatus: ReportStatus.Pending,
             // quickReportDate: new Date(),
             ..._status == "reject" ? {
@@ -835,7 +835,7 @@ export class QprService {
                 eightDStatusChecker3: completed ? ReportStatus.Completed : ReportStatus.Approved,
                 eightDDateChecker3: new Date(),
             },
-            
+
             updatedBy: actionBy
         })
 
@@ -874,7 +874,7 @@ export class QprService {
 
         const page = pdfDoc.getPage(0);
 
-       
+
 
         page.drawText(data.qprIssueNo, {
             x: 485,
@@ -884,7 +884,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.occurrenceDate ? moment(data.occurrenceDate).format('DD MMMM YYYY'): '', {
+        page.drawText(data.occurrenceDate ? moment(data.occurrenceDate).format('DD MMMM YYYY') : '', {
             x: 485,
             y: 760,
             size: 7,
@@ -892,7 +892,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.dateReported ? moment(data.dateReported).format('DD MMMM YYYY'): '', {
+        page.drawText(data.dateReported ? moment(data.dateReported).format('DD MMMM YYYY') : '', {
             x: 485,
             y: 745,
             size: 7,
@@ -900,7 +900,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.replyQuickAction ? moment(data.replyQuickAction).format('DD MMMM YYYY HH:mm'): '', {
+        page.drawText(data.replyQuickAction ? moment(data.replyQuickAction).format('DD MMMM YYYY HH:mm') : '', {
             x: 485,
             y: 730,
             size: 7,
@@ -908,7 +908,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.replyReport ? moment(data.replyReport).format('DD MMMM YYYY'): '', {
+        page.drawText(data.replyReport ? moment(data.replyReport).format('DD MMMM YYYY') : '', {
             x: 485,
             y: 715,
             size: 7,
@@ -916,7 +916,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.partName ? data.partName: '', {
+        page.drawText(data.partName ? data.partName : '', {
             x: 125,
             y: 745,
             size: 7,
@@ -924,7 +924,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.partNo ? data.partNo: '', {
+        page.drawText(data.partNo ? data.partNo : '', {
             x: 125,
             y: 730,
             size: 7,
@@ -932,7 +932,7 @@ export class QprService {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(data.when ? data.when: '', {
+        page.drawText(data.when ? data.when : '', {
             x: 125,
             y: 715,
             size: 7,
@@ -1297,57 +1297,57 @@ export class QprService {
             const pathFigures = join(__dirname, '..', '..', ...`${data.figures.img2}`.split('/'))
             if (existsSync(pathFigures)) {
                 const iconBytes: Buffer = await this.ConvertImageToJPG(pathFigures)
-                const iconImage = await pdfDoc.embedJpg(iconBytes);   
+                const iconImage = await pdfDoc.embedJpg(iconBytes);
                 page.drawImage(iconImage, {
                     x: 90,   // X-coordinate for the image
                     y: 320,  // Y-coordinate for the image
                     width: 120,  // Scale the icon width
                     height: 120, // Scale the icon height
                 });
-            } 
+            }
         }
 
         if (data.figures && data.figures.img3) {
             const pathFigures = join(__dirname, '..', '..', ...`${data.figures.img3}`.split('/'))
             if (existsSync(pathFigures)) {
                 const iconBytes: Buffer = await this.ConvertImageToJPG(pathFigures)
-                const iconImage = await pdfDoc.embedJpg(iconBytes);   
+                const iconImage = await pdfDoc.embedJpg(iconBytes);
                 page.drawImage(iconImage, {
                     x: 90 + 160,   // X-coordinate for the image
                     y: 320,  // Y-coordinate for the image
                     width: 120,  // Scale the icon width
                     height: 120, // Scale the icon height
                 });
-            } 
+            }
         }
 
         if (data.figures && data.figures.img4) {
             const pathFigures = join(__dirname, '..', '..', ...`${data.figures.img4}`.split('/'))
             if (existsSync(pathFigures)) {
                 const iconBytes: Buffer = await this.ConvertImageToJPG(pathFigures)
-                const iconImage = await pdfDoc.embedJpg(iconBytes);   
+                const iconImage = await pdfDoc.embedJpg(iconBytes);
                 page.drawImage(iconImage, {
                     x: 90 + 160 + 160,   // X-coordinate for the image
                     y: 320,  // Y-coordinate for the image
                     width: 120,  // Scale the icon width
                     height: 120, // Scale the icon height
                 });
-            } 
+            }
         }
 
         if (data.figures && data.figures.img1) {
             const pathFigures = join(__dirname, '..', '..', ...`${data.figures.img1}`.split('/'))
             if (existsSync(pathFigures)) {
                 const iconBytes: Buffer = await this.ConvertImageToJPG(pathFigures)
-                const iconImage = await pdfDoc.embedJpg(iconBytes);   
+                const iconImage = await pdfDoc.embedJpg(iconBytes);
                 page.drawImage(iconImage, {
                     x: 90 + 160 + 160,   // X-coordinate for the image
                     y: 450,  // Y-coordinate for the image
                     width: 120,  // Scale the icon width
                     height: 120, // Scale the icon height
-                    opacity: 0.8, 
+                    opacity: 0.8,
                 });
-            } 
+            }
         }
 
         if (data.createdBy && data.createdBy.name) { // Mass Production  Service
@@ -1377,7 +1377,7 @@ export class QprService {
 
             if (objectQPR?.actionDetail) { // Mass Production  Service
                 const actionDetail = objectQPR.actionDetail
-    
+
                 this.DrawTextWithWrapping({
                     page,
                     text: `${actionDetail}`,
@@ -1440,45 +1440,45 @@ export class QprService {
                     const pathFigures = join(__dirname, '..', '..', ...`${objectQPR.sketches[0].file.file}`.split('/'))
                     if (existsSync(pathFigures)) {
                         const iconBytes: Buffer = await this.ConvertImageToJPG(pathFigures)
-                        const iconImage = await pdfDoc.embedJpg(iconBytes);   
+                        const iconImage = await pdfDoc.embedJpg(iconBytes);
                         page.drawImage(iconImage, {
                             x: 320,   // X-coordinate for the image
                             y: 170,  // Y-coordinate for the image
                             width: 70,  // Scale the icon width
                             height: 70, // Scale the icon height
-                            opacity: 0.8, 
+                            opacity: 0.8,
                         });
-                    } 
+                    }
                 }
 
                 if (objectQPR.sketches[1] && objectQPR.sketches[1].file && objectQPR.sketches[1].file.file) {
                     const pathFigures = join(__dirname, '..', '..', ...`${objectQPR.sketches[1].file.file}`.split('/'))
                     if (existsSync(pathFigures)) {
                         const iconBytes: Buffer = await this.ConvertImageToJPG(pathFigures)
-                        const iconImage = await pdfDoc.embedJpg(iconBytes);   
+                        const iconImage = await pdfDoc.embedJpg(iconBytes);
                         page.drawImage(iconImage, {
                             x: 320 + 80,   // X-coordinate for the image
                             y: 170,  // Y-coordinate for the image
                             width: 70,  // Scale the icon width
                             height: 70, // Scale the icon height
-                            opacity: 0.8, 
+                            opacity: 0.8,
                         });
-                    } 
+                    }
                 }
 
                 if (objectQPR.sketches[2] && objectQPR.sketches[2].file && objectQPR.sketches[2].file.file) {
                     const pathFigures = join(__dirname, '..', '..', ...`${objectQPR.sketches[2].file.file}`.split('/'))
                     if (existsSync(pathFigures)) {
                         const iconBytes: Buffer = await this.ConvertImageToJPG(pathFigures)
-                        const iconImage = await pdfDoc.embedJpg(iconBytes);   
+                        const iconImage = await pdfDoc.embedJpg(iconBytes);
                         page.drawImage(iconImage, {
                             x: 320 + 80 + 80,   // X-coordinate for the image
                             y: 170,  // Y-coordinate for the image
                             width: 70,  // Scale the icon width
                             height: 70, // Scale the icon height
-                            opacity: 0.8, 
+                            opacity: 0.8,
                         });
-                    } 
+                    }
                 }
             }
 
@@ -1502,7 +1502,7 @@ export class QprService {
 
             if (checker1?.updatedBy) { // Mass Production  Service
                 const updatedBy = checker1.updatedBy
-    
+
                 this.DrawTextWithWrapping({
                     page,
                     text: `${updatedBy}`,
@@ -1518,7 +1518,7 @@ export class QprService {
 
             if (checker2?.updatedBy) { // Mass Production  Service
                 const updatedBy = checker2.updatedBy
-    
+
                 this.DrawTextWithWrapping({
                     page,
                     text: `${updatedBy}`,
@@ -1534,7 +1534,7 @@ export class QprService {
 
             if (checker3?.updatedBy) { // Mass Production  Service
                 const updatedBy = checker3.updatedBy
-    
+
                 this.DrawTextWithWrapping({
                     page,
                     text: `${updatedBy}`,
@@ -1551,7 +1551,7 @@ export class QprService {
         }
 
 
-        if (View) {
+        if (View && false) {
             page.drawText('View', {
                 x: page.getWidth() / 3,    // X-coordinate (adjust as needed)
                 y: page.getHeight() / 3,   // Y-coordinate (adjust as needed)
@@ -1562,12 +1562,12 @@ export class QprService {
                 opacity: 0.5,                 // Set the opacity for transparency
             });
         }
-        
+
         const pdfBytesOutput = await pdfDoc.save();
         return pdfBytesOutput;
     }
 
-    ConvertImageToJPG = async (pathFigures : string): Promise<Buffer> => {
+    ConvertImageToJPG = async (pathFigures: string): Promise<Buffer> => {
         const fileExt = extname(pathFigures).toLowerCase();
         let iconBytes: Buffer;
 
@@ -1654,11 +1654,11 @@ export class QprService {
                         console.log(`File: ${file8D.name} not found at path: ${pathFile}`);
                         throw new NotFoundException(`File: ${file8D.name} not found.`);
                     }
-        
+
                     let pdfBytes: Uint8Array | null = fs.readFileSync(pathFile);
                     // Load the PDF template into pdf-lib
                     const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
-            
+
                     // Set the PDF metadata
                     pdfDoc.setTitle(file8D.name);
                     pdfDoc.setAuthor('');
@@ -1667,62 +1667,188 @@ export class QprService {
                     pdfDoc.setProducer(`Claim App`);
                     pdfDoc.setCreationDate(new Date());
                     pdfDoc.registerFontkit(fontkit);
-            
+
                     // Load the font
                     const fontBytes = fs.readFileSync(join(__dirname, '..', '..', '/files-templates/fonts/NotoSansThai-Medium.ttf'));
                     const font = await pdfDoc.embedFont(fontBytes);
-            
+
+                    const fontBytesB = fs.readFileSync(join(__dirname , '..', '..', '/files-templates/fonts/NotoSansThai_SemiCondensed-Bold.ttf'))
+                    const fontB = await pdfDoc.embedFont(fontBytesB);
+
                     // Add watermark to each page
                     const pages = pdfDoc.getPages();
-            
+
                     if (!pages.length) {
                         throw new Error('The PDF contains no pages to process.');
                     }
-            
+
+                    const object8DReportDto = data.object8DReportDto[data.object8DReportDto.length - 1];
+                    const object8D = object8DReportDto && object8DReportDto.object8D ? object8DReportDto.object8D : undefined;
+                    const checker1 = object8DReportDto && object8DReportDto.checker1 ? object8DReportDto.checker1 : undefined
+                    const checker2 = object8DReportDto && object8DReportDto.checker2 ? object8DReportDto.checker2 : undefined
+                    const checker3 = object8DReportDto && object8DReportDto.checker3 ? object8DReportDto.checker3 : undefined
+
                     const watermarkText = 'View';
-        
+
                     for (const page of pages) {
                         const pageWidth = page.getWidth();
                         const pageHeight = page.getHeight();
-                    
+
                         // Calculate font size to make the text approximately 1/3 of the page
-                        const fontSize = Math.min(pageWidth, pageHeight) / 3;
-                    
+                        const fontSize = Math.min(pageWidth, pageHeight) / 10;
+
                         // Calculate text dimensions
                         const textWidth = font.widthOfTextAtSize(watermarkText, fontSize);
                         const textHeight = fontSize; // Approximation
-                    
+
                         // Adjust for rotation to center the text
-                        const angle = 45; // Rotate 45 degrees
+                        const angle = 0; // Rotate 45 degrees
                         const radians = (angle * Math.PI) / 180;
-                    
+
                         // Calculate the rotated dimensions
                         const rotatedWidth = Math.abs(textWidth * Math.cos(radians)) + Math.abs(textHeight * Math.sin(radians));
                         const rotatedHeight = Math.abs(textWidth * Math.sin(radians)) + Math.abs(textHeight * Math.cos(radians));
-                    
+
                         // Center the text on the page
-                        const x = (pageWidth - rotatedWidth) / 2 + rotatedWidth / 4; // Adjust for proper centering
-                        const y = (pageHeight - rotatedHeight) / 2;
-                    
+                        const x = (pageWidth - rotatedWidth) / 3 + rotatedWidth / 4; // Adjust for proper centering
+                        const y = (pageHeight - rotatedHeight) / 18;
+
                         // Draw the text
-                        page.drawText(watermarkText, {
+                        // page.drawText(watermarkText, {
+                        //     x,
+                        //     y,
+                        //     size: fontSize,
+                        //     font,
+                        //     color: rgb(0.75, 0.75, 0.75), // Light grey
+                        //     rotate: degrees(angle), // Rotate 45 degrees
+                        //     opacity: 0.5, // Semi-transparent text
+                        // });
+                        page.drawRectangle({
                             x,
                             y,
-                            size: fontSize,
-                            font,
-                            color: rgb(0.75, 0.75, 0.75), // Light grey
-                            rotate: degrees(angle), // Rotate 45 degrees
-                            opacity: 0.5, // Semi-transparent text
+                            width: 450,
+                            height: 100,
+                            borderColor: rgb(0, 0, 0),
+                            borderWidth: 1,
                         });
+
+                        page.drawText('(9) Opinion of JTEKT QA Dept.', {
+                            x: x + 3,
+                            y: (y + 90),
+                            size: 9,
+                            font: font,
+                            color: rgb(0, 0, 0),
+                        })
+
+                        this.DrawTextWithWrapping({
+                            page,
+                            text: `${object8D.remark || ''}`,
+                            x: x + 2,
+                            y: (y + 78),
+                            size: 9,
+                            font: font,
+                            color: rgb(0, 0, 0),
+                            maxWidth: 250,
+                            lineHeight: 11
+                        });
+
+                        const tableX = x + 240;  // จุดเริ่มต้นของตาราง (X)
+                        let tableY = y + 100;   // จุดเริ่มต้นของตาราง (Y)
+                        const colCount = 3; // จำนวนคอลัมน์
+                        const cellWidth = 70; // ความกว้างของเซลล์
+
+                        const columnHeaders = ["Approved", "Approved", "Checked"];
+                        const rowHeights = [20, 20, 40, 20]; // ความสูงของแต่ละแถว
+                        const values = [checker3?.updatedBy || undefined, checker2?.updatedBy || undefined , checker1?.updatedBy || undefined]
+                        const valuesUpdate = [checker3?.updatedAt || undefined, checker2?.updatedAt || undefined , checker1?.updatedAt || undefined]
+
+                        // วาดแต่ละแถวของตาราง
+                        for (let row = 0; row < rowHeights.length; row++) {
+                            const height = rowHeights[row];
+                            const xx = x + 240;
+                            const yy = y + 80;
+                            if (row === 0) {
+                                page.drawRectangle({
+                                    x: xx,
+                                    y: yy,
+                                    width: 20 + 20 + 40 + 20 + 110,
+                                    height,
+                                    borderColor: rgb(0, 0, 0),
+                                    borderWidth: 1,
+                                });
+                            }
+
+                            for (let col = 0; col < colCount; col++) {
+                                const x = tableX + col * cellWidth;
+                                const y = tableY - height;
+
+                                if (row !== 0) {
+                                    page.drawRectangle({
+                                        x,
+                                        y,
+                                        width: cellWidth,
+                                        height,
+                                        borderColor: rgb(0, 0, 0),
+                                        borderWidth: 1,
+                                    });
+                                }
+                                
+                                // ใส่ข้อความสำหรับแถวที่ 1 (Supplier Authorized)
+                                if (row === 0 && col === 0) {
+                                    page.drawText("JATH, Quality Assurance Dept.", {
+                                        x: x + 35,
+                                        y: y + 5,
+                                        size: 11,
+                                        font: fontB,
+                                    });
+                                }
+
+                                // ใส่ข้อความสำหรับแถวที่ 2 (Approved, Checked, Prepared)
+                                if (row === 1) {
+                                    page.drawText(columnHeaders[col], {
+                                        x: x + 13,
+                                        y: y + 5,
+                                        size: 9,
+                                        font: fontB,
+                                    });
+                                }
+
+                                if (row === 2 && values[col]) {
+                                    this.DrawTextWithWrapping({
+                                        page,
+                                        text: `${values[col]}`,
+                                        x: x + 2,
+                                        y: y + 20,
+                                        size: 9,
+                                        font: fontB,
+                                        color: rgb(0, 0, 0),
+                                        maxWidth: 70,
+                                        lineHeight: 10
+                                    });
+                                }
+
+                                if (row === 3 && valuesUpdate[col]) {
+                                    page.drawText(valuesUpdate[col] ? moment(valuesUpdate[col]).format('DD-MM-YYYY') : "", {
+                                        x: x + 15,
+                                        y: y + 5,
+                                        size: 9,
+                                        font: fontB,
+                                    });
+                                }
+                            }
+
+                            // อัปเดตค่า Y เพื่อเลื่อนลงไปวาดแถวถัดไป
+                            tableY -= height;
+                        }
                     }
-            
+
                     const pdfBytesOutput = await pdfDoc.save();
                     return pdfBytesOutput;
                 }
                 throw new NotFoundException(`File: ${file8D.name} not found.`);
             }
             throw new NotFoundException(`File not found.`);
-            
+
         } catch (e) {
             console.error('Error processing ViewFileDrawing:', e.message);
             throw new BadRequestException(e.message || 'An error occurred while processing the PDF.');
@@ -1762,7 +1888,7 @@ export class QprService {
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('DataSheet');
-    
+
         const fomatExport = dataexport.map((x) => {
             return {
                 id: x.id,
@@ -1778,32 +1904,32 @@ export class QprService {
         })
         // กำหนด Header ของ Excel
         worksheet.columns = [
-          { header: 'Qpr No', key: 'qprNo', width: 10 },
-          { header: 'Supplier', key: 'supplier', width: 20 },
-          { header: 'Problem', key: 'problem', width: 30 },
-          { header: 'Importance', key: 'importance', width: 12 },
-          { header: 'Status', key: 'status', width: 12 },
-          { header: 'Quick Report', key: 'quickReport', width: 20 },
-          { header: 'Report 8D', key: 'report8D', width: 20 },
+            { header: 'Qpr No', key: 'qprNo', width: 10 },
+            { header: 'Supplier', key: 'supplier', width: 20 },
+            { header: 'Problem', key: 'problem', width: 30 },
+            { header: 'Importance', key: 'importance', width: 12 },
+            { header: 'Status', key: 'status', width: 12 },
+            { header: 'Quick Report', key: 'quickReport', width: 20 },
+            { header: 'Report 8D', key: 'report8D', width: 20 },
         ];
-    
+
         // ใส่ข้อมูลลงใน Excel
         fomatExport.forEach((item) => {
-          worksheet.addRow(item);
+            worksheet.addRow(item);
         });
-    
+
         // กำหนดชื่อไฟล์ Excel
         response.setHeader(
-          'Content-Type',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Type',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         );
         response.setHeader(
-          'Content-Disposition',
-          'attachment; filename=export.xlsx',
+            'Content-Disposition',
+            'attachment; filename=export.xlsx',
         );
-    
+
         // บันทึกไฟล์และส่งกลับไปยัง client
         await workbook.xlsx.write(response);
         response.end();
-      }
+    }
 }

@@ -171,6 +171,10 @@ export class Upload8DReportDto {
 
 export class Object8D {
 
+    @IsString()
+    @IsOptional()
+    remark?: string; // หมายเหตุ (อาจว่างเปล่า)
+
     @IsOptional()
     @IsObject()
     @ValidateNested()
@@ -182,31 +186,6 @@ export class Object8D {
     @ValidateNested()
     @Type(() => UploadSectionDto)
     uploadSections: UploadSectionDto[]; // รายละเอียดไฟล์อื่น ๆ ใน Sections
-}
-
-export class Object8DReportDto {
-    @IsOptional()
-    @IsString()
-    status: 'draft' | 'approve'
-
-    @IsOptional()
-    @IsString()
-    actionBy: string;
-
-    @IsObject()
-    @IsNotEmptyObject()
-    @ValidateNested()
-    @Type(() => Object8D)
-    object8D: Object8D;
-}
-
-export class DocumentOtherDto {
-    key: string; // Unique key ของเอกสาร
-    num: number; // ลำดับของเอกสาร
-    name: string; // ชื่อของเอกสาร
-    path: string; // พาธไฟล์ของเอกสาร
-    approve: string; // สถานะการอนุมัติ ("approve" หรือ "reject")
-    remark: string; // หมายเหตุ (อาจว่างเปล่า)
 }
 
 export class Save8DChecker1 {
@@ -229,8 +208,60 @@ export class Save8DChecker1 {
     @IsString()
     @IsOptional()
     dueDateReqDocumentOther?: string; // วันที่ครบกำหนดสำหรับเอกสารอื่น ๆ ที่ร้องขอ (ในรูปแบบ ISO-8601)
+
+    @IsOptional()
+    @IsString()
+    updatedBy?: string;
+
+    @IsOptional()
+    @IsString()
+    updatedAt?: string;
 }
 
 export class Save8DChecker2 extends Save8DChecker1 {}
 
 export class Save8DChecker3 extends Save8DChecker1 {}
+
+export class Object8DReportDto {
+    @IsOptional()
+    @IsString()
+    status: 'draft' | 'approve'
+
+    @IsOptional()
+    @IsString()
+    actionBy: string;
+
+    @IsObject()
+    @IsNotEmptyObject()
+    @ValidateNested()
+    @Type(() => Object8D)
+    object8D: Object8D;
+
+    @IsOptional()
+    @IsObject()
+    @ValidateNested()
+    @Type(() => Save8DChecker1)
+    checker1?: Save8DChecker1;
+
+    @IsOptional()
+    @IsObject()
+    @ValidateNested()
+    @Type(() => Save8DChecker2)
+    checker2?: Save8DChecker2;
+
+    @IsOptional()
+    @IsObject()
+    @ValidateNested()
+    @Type(() => Save8DChecker3)
+    checker3?: Save8DChecker3;
+}
+
+export class DocumentOtherDto {
+    key: string; // Unique key ของเอกสาร
+    num: number; // ลำดับของเอกสาร
+    name: string; // ชื่อของเอกสาร
+    path: string; // พาธไฟล์ของเอกสาร
+    approve: string; // สถานะการอนุมัติ ("approve" หรือ "reject")
+    remark: string; // หมายเหตุ (อาจว่างเปล่า)
+}
+
