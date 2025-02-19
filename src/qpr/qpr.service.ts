@@ -195,15 +195,6 @@ export class QprService {
         const objectQPRSupplier = check.objectQPRSupplier || [];
         const existingDraft = objectQPRSupplier.find((item) => item.status === 'draft');
 
-        // เช็คสถานะของ Quick Report
-        if (check.quickReportStatus === ReportStatus.Approved) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Approved แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.quickReportStatus === ReportStatus.Completed) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Completed แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.quickReportStatus === ReportStatus.Rejected) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Rejected แล้วโดย ${existingDraft?.actionBy}`);
-        }
-
         // คำนวณ index ของ objectQPR ล่าสุด
         const arrObject = query.length - 1;
         const newSketches: Sketch[] = [];
@@ -278,15 +269,6 @@ export class QprService {
 
         const objectQPRSupplier = check.objectQPRSupplier || [];
         const existingDraft = objectQPRSupplier.find((item) => item.status === 'draft');
-
-        // ตรวจสอบสถานะของ Quick Report
-        if (check.quickReportStatus === ReportStatus.Approved) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Approved แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.quickReportStatus === ReportStatus.Completed) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Completed แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.quickReportStatus === ReportStatus.Rejected) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Rejected แล้วโดย ${existingDraft?.actionBy}`);
-        }
 
         // คำนวณ index ของ objectQPR ล่าสุด
         const arrObject = query.length - 1;
@@ -375,11 +357,14 @@ export class QprService {
             ...body.approve == "reject" ? {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
+                quickReportStatus: ReportStatus.Rejected,
+                quickReportDate:new Date(),
                 replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {
-
+                quickReportStatus: ReportStatus.Approved,
+                quickReportDate:new Date(),
             },
-            quickReportStatusChecker1: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
+            quickReportStatusChecker1: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker1: new Date(),
             updatedBy: actionBy
         })
@@ -413,9 +398,14 @@ export class QprService {
             ...body.approve == "reject" ? {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
+                quickReportStatus: ReportStatus.Rejected,
+                quickReportDate:new Date(),
                 replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
-            } : {},
-            quickReportStatusChecker2: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
+            } : {
+                quickReportStatus: ReportStatus.Approved,
+                quickReportDate:new Date(),
+            },
+            quickReportStatusChecker2: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker2: new Date(),
             eightDReportApprover: body.eightDReportApprover,
             updatedBy: actionBy
@@ -452,7 +442,8 @@ export class QprService {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
                 delayDocument: "Quick Report",
-                quickReportStatus: ReportStatus.WaitForSupplier,
+                quickReportStatus: ReportStatus.Rejected,
+                quickReportDate: new Date(),
                 replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {
                 delayDocument: "8D Report",
@@ -460,10 +451,9 @@ export class QprService {
                 quickReportDate: new Date(),
                 replyReport: body.replay ? moment(body.replay).toDate() : null,
             },
-            quickReportStatusChecker3: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
+            quickReportStatusChecker3: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker3: new Date(),
-            // eightDReportApprover: body.eightDReportApprover,
-
+            eightDReportApprover: body.eightDReportApprover,
             eightDReportSupplierStatus: ReportStatus.Pending,
             eightDReportSupplierDate: new Date(),
             updatedBy: actionBy
@@ -492,15 +482,6 @@ export class QprService {
         const object8DReportDto = check.object8DReportDto || [];
         const existingDraft = object8DReportDto.find((item) => item.status === 'draft');
         const basePath = configPath.pathUploadSupplier8d;
-
-        // เช็คสถานะของ Quick Report
-        if (check.eightDReportStatus === ReportStatus.Approved) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Approved แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.eightDReportStatus === ReportStatus.Completed) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Completed แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.eightDReportStatus === ReportStatus.Rejected) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Rejected แล้วโดย ${existingDraft?.actionBy}`);
-        }
 
         // อัปเดต sketches หากมีข้อมูลใหม่
         if (query[arrObject]?.object8D.uploadSections.length) {
@@ -591,15 +572,6 @@ export class QprService {
         const existingDraft = object8DReportDto.find((item) => item.status === 'draft');
         const basePath = configPath.pathUploadSupplier8d;
 
-        // เช็คสถานะของ Quick Report
-        if (check.eightDReportStatus === ReportStatus.Approved) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Approved แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.eightDReportStatus === ReportStatus.Completed) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Completed แล้วโดย ${existingDraft?.actionBy}`);
-        } else if (check.eightDReportStatus === ReportStatus.Rejected) {
-            throw new NotAcceptableException(`เอกสารนี้ถูก Rejected แล้วโดย ${existingDraft?.actionBy}`);
-        }
-
         // อัปเดต sketches หากมีข้อมูลใหม่
         if (query[arrObject]?.object8D.uploadSections.length) {
             for (const fileObj of query[arrObject].object8D.uploadSections) {
@@ -687,8 +659,13 @@ export class QprService {
             ..._status == "reject" ? {
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
-            } : {},
-            eightDStatusChecker1: _status == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
+                eightDReportStatus: ReportStatus.Rejected,
+                eightDReportDate: new Date(),
+            } : {
+                eightDReportStatus: ReportStatus.Approved,
+                eightDReportDate: new Date(),
+            },
+            eightDStatusChecker1: _status == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             eightDDateChecker1: new Date(),
             updatedBy: actionBy
         })
@@ -716,6 +693,17 @@ export class QprService {
             _status = 'reject';
         }
 
+        if (check.approve8dAndRejectDocOther == ActiveStatus.YES) {
+            if (body.reqDocumentOther) {
+                _status = 'reject'
+            } else if (body.dueDateReqDocumentOther) {
+                _status = 'reject'
+            } else if (body.documentOther.filter((x) => x.approve == 'reject').length > 0) {
+                _status = 'reject'
+            }
+        }
+        
+
         await this.qprRepository.update(id, {
             object8DReportDto: check.object8DReportDto.map((arr: Object8DReportDto, index) => {
                 if (index == arrObject) return {
@@ -735,28 +723,33 @@ export class QprService {
             status: ReportStatus.Inprocess,
             // quickReportStatus: ReportStatus.Approved,
             // quickReportDate: new Date(),
-            ..._status == "reject" && check.approve8dAndRejectDocOther == 'N' ? {
+            ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.NO ? {
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
+                eightDReportStatus: ReportStatus.Rejected,
+                eightDReportDate: new Date(),
             } : {},
-            ..._status == "approve" && check.approve8dAndRejectDocOther == 'N' ? {
-                eightDStatusChecker2: _status == "approve" ? ReportStatus.Approved : ReportStatus.WaitForSupplier,
+            ..._status == "approve" && check.approve8dAndRejectDocOther == ActiveStatus.NO ? {
+                eightDStatusChecker2: ReportStatus.Approved,
                 eightDDateChecker2: new Date(),
+                eightDReportStatus: ReportStatus.Approved,
+                eightDReportDate: new Date(),
             } : {},
-            ..._status == "reject" && check.approve8dAndRejectDocOther == 'Y' ? {
+            ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
                 status: ReportStatus.WaitForSupplier,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
                 delayDocument: "8D Report",
-                eightDReportStatus: ReportStatus.Pending,
-                eightDStatusChecker2: ReportStatus.WaitForSupplier,
+                eightDReportStatus: ReportStatus.Rejected,
+                eightDReportDate: new Date(),
+                eightDStatusChecker2: ReportStatus.Rejected,
                 eightDDateChecker2: new Date(),
             } : {},
-            ..._status == "approve" && check.approve8dAndRejectDocOther == 'Y' ? {
+            ..._status == "approve" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
                 delayDocument: "8D Report",
-                eightDReportStatus: check.approve8dAndRejectDocOther == 'Y' ? ReportStatus.Completed : ReportStatus.Approved,
+                eightDReportStatus: ReportStatus.Completed,
                 eightDReportDate: new Date(),
-                status: check.approve8dAndRejectDocOther == 'Y' ? ReportStatus.Completed : ReportStatus.Approved,
+                status: ReportStatus.Completed,
                 eightDStatusChecker3: ReportStatus.Approved,
                 eightDDateChecker3: new Date(),
                 eightDStatusChecker2: ReportStatus.Completed,
@@ -785,16 +778,16 @@ export class QprService {
 
         let _status = 'approve';
         let approve8dAndRejectDocOther: ActiveStatus = ActiveStatus.NO
-        if (body.documentOther.filter((x) => x.approve == 'reject').length > 0) {
+
+        if (body.approve == 'reject') {
             _status = 'reject';
-            approve8dAndRejectDocOther = ActiveStatus.YES;
-        } else if (body.approve == 'reject') {
-            _status = 'reject';
-        } else if (body.reqDocumentOther) {
-            _status = 'reject';
+        }  
+
+        if (body.reqDocumentOther) {
             approve8dAndRejectDocOther = ActiveStatus.YES;
         } else if (body.dueDateReqDocumentOther) {
-            _status = 'reject';
+            approve8dAndRejectDocOther = ActiveStatus.YES;
+        } else if (body.documentOther.filter((x) => x.approve == 'reject').length > 0) {
             approve8dAndRejectDocOther = ActiveStatus.YES;
         }
 
@@ -819,29 +812,39 @@ export class QprService {
             // quickReportDate: new Date(),
             ..._status == "reject" ? {
                 status: ReportStatus.WaitForSupplier,
-                approve8dAndRejectDocOther,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
                 delayDocument: "8D Report",
                 eightDReportStatus: ReportStatus.Pending,
-                eightDStatusChecker3: ReportStatus.WaitForSupplier,
+                eightDReportDate: new Date(),
+                eightDStatusChecker3: ReportStatus.Rejected,
                 eightDDateChecker3: new Date(),
             } : {
-                delayDocument: "8D Report",
-                eightDReportStatus: completed ? ReportStatus.Completed : ReportStatus.Approved,
-                eightDReportDate: new Date(),
-                status: completed ? ReportStatus.Completed : ReportStatus.Approved,
-
-                eightDStatusChecker3: completed ? ReportStatus.Completed : ReportStatus.Approved,
-                eightDDateChecker3: new Date(),
+                ... approve8dAndRejectDocOther == ActiveStatus.YES ? {
+                    status: ReportStatus.WaitForSupplier,
+                    eightDReportSupplierStatus: ReportStatus.Rejected,
+                    eightDReportSupplierDate: new Date(),
+                    delayDocument: "8D Report",
+                    eightDReportStatus: ReportStatus.Approved,
+                    eightDReportDate: new Date(),
+                    eightDStatusChecker3: ReportStatus.Approved,
+                    eightDDateChecker3: new Date(),
+                } : {
+                    delayDocument: "8D Report",
+                    eightDReportStatus: completed ? ReportStatus.Completed : ReportStatus.Approved,
+                    eightDReportDate: new Date(),
+                    status: completed ? ReportStatus.Completed : ReportStatus.Approved,
+                    eightDStatusChecker3: completed ? ReportStatus.Completed : ReportStatus.Approved,
+                    eightDDateChecker3: new Date(),
+                }
             },
-
+            approve8dAndRejectDocOther,
             updatedBy: actionBy
         })
 
         const newValue = await this.findId(id)
         this.myGatewayGateway.sendMessage('reload-status', newValue);
-        if (_status == "reject") {
+        if (_status == "reject" || approve8dAndRejectDocOther == ActiveStatus.YES) {
             this.myGatewayGateway.sendMessage('reload-status-reject-8d', newValue);
         }
         return newValue;
@@ -1499,8 +1502,8 @@ export class QprService {
                     height: 10, // Scale the icon height
                 });
             }
-
-            if (checker1?.updatedBy) { // Mass Production  Service
+            const isNotReject = data.quickReportStatusChecker1 !== ReportStatus.Rejected && data.quickReportStatusChecker2 !== ReportStatus.Rejected && data.quickReportStatusChecker3 !== ReportStatus.Rejected
+            if (isNotReject && checker1?.updatedBy) { // Mass Production  Service
                 const updatedBy = checker1.updatedBy
 
                 this.DrawTextWithWrapping({
@@ -1516,7 +1519,7 @@ export class QprService {
                 });
             }
 
-            if (checker2?.updatedBy) { // Mass Production  Service
+            if (isNotReject && checker2?.updatedBy) { // Mass Production  Service
                 const updatedBy = checker2.updatedBy
 
                 this.DrawTextWithWrapping({
@@ -1532,7 +1535,7 @@ export class QprService {
                 });
             }
 
-            if (checker3?.updatedBy) { // Mass Production  Service
+            if (isNotReject && checker3?.updatedBy) { // Mass Production  Service
                 const updatedBy = checker3.updatedBy
 
                 this.DrawTextWithWrapping({
@@ -1686,7 +1689,13 @@ export class QprService {
                     const object8D = object8DReportDto && object8DReportDto.object8D ? object8DReportDto.object8D : undefined;
                     const checker1 = object8DReportDto && object8DReportDto.checker1 ? object8DReportDto.checker1 : undefined
                     const checker2 = object8DReportDto && object8DReportDto.checker2 ? object8DReportDto.checker2 : undefined
-                    const checker3 = object8DReportDto && object8DReportDto.checker3 ? object8DReportDto.checker3 : undefined
+                    let checker3 = object8DReportDto && object8DReportDto.checker3 ? object8DReportDto.checker3 : undefined
+
+                    if (data.approve8dAndRejectDocOther == ActiveStatus.YES && data.object8DReportDto.length > 1) {
+                        const filterChecker3 = data.object8DReportDto.filter((x) => x.checker3);
+                        let afterData = filterChecker3 && filterChecker3.length && filterChecker3[filterChecker3.length - 1] || undefined;
+                        checker3 = afterData && afterData.checker3 ? afterData.checker3 : undefined;
+                    }
 
                     const watermarkText = 'View';
 
@@ -1762,6 +1771,7 @@ export class QprService {
                         const values = [checker3?.updatedBy || undefined, checker2?.updatedBy || undefined , checker1?.updatedBy || undefined]
                         const valuesUpdate = [checker3?.updatedAt || undefined, checker2?.updatedAt || undefined , checker1?.updatedAt || undefined]
 
+                        const isNotReject = data.eightDStatusChecker1 !== ReportStatus.Rejected && data.eightDStatusChecker2 !== ReportStatus.Rejected && data.eightDStatusChecker3 !== ReportStatus.Rejected
                         // วาดแต่ละแถวของตาราง
                         for (let row = 0; row < rowHeights.length; row++) {
                             const height = rowHeights[row];
@@ -1813,7 +1823,7 @@ export class QprService {
                                     });
                                 }
 
-                                if (row === 2 && values[col]) {
+                                if (row === 2 && values[col] && isNotReject) {
                                     this.DrawTextWithWrapping({
                                         page,
                                         text: `${values[col]}`,
@@ -1827,7 +1837,7 @@ export class QprService {
                                     });
                                 }
 
-                                if (row === 3 && valuesUpdate[col]) {
+                                if (row === 3 && valuesUpdate[col] && isNotReject) {
                                     page.drawText(valuesUpdate[col] ? moment(valuesUpdate[col]).format('DD-MM-YYYY') : "", {
                                         x: x + 15,
                                         y: y + 5,

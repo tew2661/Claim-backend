@@ -31,9 +31,6 @@ async function bootstrap() {
     prefix: `/api/v1/${configPath.pathStaticFiles}/`, // URL path ที่สามารถเข้าถึงได้
   });
 
-  console.log(join(__dirname, '..', ...configPath.pathStaticFiles.split('/')))
-  
-
   // app.use(cookieParser());
   await app.listen(process.env.NEST_PORT ?? 3000);
 }
