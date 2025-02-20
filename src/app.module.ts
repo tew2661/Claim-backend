@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { NotificationModule } from './my-gateway/my-gateway.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { QprModule } from './qpr/qpr.module';
+import { LogsModule } from './logs/logs.module';
 
 @Module({
   imports: [
@@ -20,7 +21,8 @@ import { QprModule } from './qpr/qpr.module';
     UsersModule,
     NotificationModule,
     SupplierModule,
-    QprModule
+    QprModule,
+    LogsModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -8,6 +8,7 @@ import { UsersModule } from 'src/users/users.module';
 import { QprEntity } from './entities/qpr.entity';
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 import { NotificationModule } from 'src/my-gateway/my-gateway.module';
+import { LogEntity } from 'src/logs/entities/log.entity';
 
 @Module({
   controllers: [QprController],
@@ -15,7 +16,8 @@ import { NotificationModule } from 'src/my-gateway/my-gateway.module';
   imports: [
     TypeOrmModule.forFeature([
         QprEntity,
-        SupplierEntity
+        SupplierEntity,
+        LogEntity
     ]),
     forwardRef(() => AuthModule),
     UsersModule,

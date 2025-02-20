@@ -32,6 +32,17 @@ export class UsersController {
         }
     }
 
+    @Get('dropdown')
+    @UseGuards(JwtAuthGuard)
+    async findDropdownAll() {
+        return (await this.usersService.findAllForDropdown()).map((arr)=> {
+            return {
+                value: arr.id,
+                label: arr.name
+            }
+        });
+    }
+
     @Get(':id')
     @UseGuards(JwtAuthGuard)
     findOne(@Param('id') id: number) {

@@ -233,5 +233,15 @@ export class UsersService {
         }
         return null;
     }
+
+    findAllForDropdown() {
+        return this.usersRepository.find({ 
+            select: ["id" , "name" ],
+            where: {
+                supplier: IsNull(),
+                activeRow: ActiveStatus.YES,
+            },
+        });
+    }
 }
  

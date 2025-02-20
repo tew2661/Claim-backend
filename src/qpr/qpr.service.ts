@@ -21,6 +21,7 @@ import * as ExcelJS from 'exceljs';
 import * as fontkit from '@pdf-lib/fontkit';
 import * as sharp from 'sharp';
 import * as fs from 'fs';
+import { DocumentType, LogAction, LogEntity, RoleType } from 'src/logs/entities/log.entity';
 
 @Injectable()
 export class QprService {
@@ -29,6 +30,8 @@ export class QprService {
         private readonly qprRepository: Repository<QprEntity>,
         @InjectRepository(SupplierEntity)
         private readonly supplierRepository: Repository<SupplierEntity>,
+        @InjectRepository(LogEntity)
+        private readonly logRepository: Repository<LogEntity>,
         private readonly myGatewayGateway: MyGatewayGateway
     ) { }
     async create(createQprDto: CreateQprDto, actionBy: UsersEntity): Promise<QprEntity> {
@@ -77,8 +80,21 @@ export class QprService {
             activeRow: ActiveStatus.YES
         });
         // บันทึกข้อมูลลงในฐานข้อมูลและคืนค่า entity ที่ถูกบันทึก
+        
         const newValue = await this.qprRepository.save(newQpr);
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            idQpr: newValue.id,
+            documentType: DocumentType.QUICK_REPORT,
+            action: LogAction.CREATED,
+            performedBy: actionBy,
+            performedAt: new Date(),
+            roleType: actionBy.role || RoleType.ISNULL,
+            remark: "",
+        })
+        await this.logRepository.save(objectNewLog);
         this.myGatewayGateway.sendMessage('create-qpr', newValue);
+        
         return
     }
 
@@ -333,6 +349,17 @@ export class QprService {
         });
 
         const newValue = await this.findId(id)
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.QUICK_REPORT,
+            idQpr: newValue.id,
+            action: LogAction.SUBMITED,
+            performedBy: actionBy,
+            performedAt: new Date(),
+            roleType: RoleType.SUPPLIER,
+            remark: "",
+        })
+        await this.logRepository.save(objectNewLog);
         this.myGatewayGateway.sendMessage('reload-status', newValue);
         return newValue;
     }
@@ -370,10 +397,22 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.QUICK_REPORT,
+            idQpr: newValue.id,
+            action: body.approve == "approve" ? LogAction.APPROVED : LogAction.REJECTED,
+            performedBy: actionBy,
+            performedAt: new Date(),
+            roleType: RoleType.CHECKER1,
+            remark: `${body.approve == "approve" ? "Approved" : "Rejected"} by Checker 1`,
+        })
+        await this.logRepository.save(objectNewLog);
         this.myGatewayGateway.sendMessage('reload-status', newValue);
         if (body.approve == "reject") {
             this.myGatewayGateway.sendMessage('reload-status-reject-qpr', newValue);
         }
+        
         return newValue;
 
     }
@@ -412,6 +451,17 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.QUICK_REPORT,
+            idQpr: newValue.id,
+            action: body.approve == "approve" ? LogAction.APPROVED : LogAction.REJECTED,
+            performedBy: actionBy,
+            performedAt: new Date(),
+            roleType: RoleType.CHECKER2,
+            remark: `${body.approve == "approve" ? "Approved" : "Rejected"} by Checker 2`,
+        })
+        await this.logRepository.save(objectNewLog);
         this.myGatewayGateway.sendMessage('reload-status', newValue);
         if (body.approve == "reject") {
             this.myGatewayGateway.sendMessage('reload-status-reject-qpr', newValue);
@@ -460,6 +510,17 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.QUICK_REPORT,
+            idQpr: newValue.id,
+            action: body.approve == "approve" ? LogAction.APPROVED : LogAction.REJECTED,
+            performedBy: actionBy,
+            performedAt: new Date(),
+            roleType: RoleType.APPROVER1,
+            remark: `${body.approve == "approve" ? "Approved" : "Rejected"} by Approver`,
+        })
+        await this.logRepository.save(objectNewLog);
         this.myGatewayGateway.sendMessage('reload-status', newValue);
         if (body.approve == "reject") {
             this.myGatewayGateway.sendMessage('reload-status-reject-qpr', newValue);
@@ -626,6 +687,17 @@ export class QprService {
         });
 
         const newValue = await this.findId(id)
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.REPORT_8D,
+            idQpr: newValue.id,
+            action: LogAction.SUBMITED,
+            performedBy: actionBy,
+            roleType: RoleType.SUPPLIER,
+            performedAt: new Date(),
+            remark: ``,
+        })
+        await this.logRepository.save(objectNewLog);
         this.myGatewayGateway.sendMessage('reload-status', newValue);
         return newValue;
     }
@@ -644,6 +716,16 @@ export class QprService {
             _status = 'reject';
         }
 
+        if (check.approve8dAndRejectDocOther == ActiveStatus.YES) {
+            if (body.reqDocumentOther) {
+                _status = 'reject'
+            } else if (body.dueDateReqDocumentOther) {
+                _status = 'reject'
+            } else if (body.documentOther.filter((x) => x.approve == 'reject').length > 0) {
+                _status = 'reject'
+            }
+        }
+
         await this.qprRepository.update(id, {
             object8DReportDto: check.object8DReportDto.map((arr: Object8DReportDto, index) => {
                 if (index == arrObject) return {
@@ -654,23 +736,53 @@ export class QprService {
                 else return arr
             }),
             status: ReportStatus.Inprocess,
-            // quickReportStatus: ReportStatus.Pending,
-            // quickReportDate: new Date(),
-            ..._status == "reject" ? {
+
+            ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.NO ? {
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
                 eightDReportStatus: ReportStatus.Rejected,
                 eightDReportDate: new Date(),
-            } : {
+            } : {},
+            ..._status == "approve" && check.approve8dAndRejectDocOther == ActiveStatus.NO ? {
+                eightDStatusChecker1: ReportStatus.Approved,
+                eightDDateChecker1: new Date(),
                 eightDReportStatus: ReportStatus.Approved,
                 eightDReportDate: new Date(),
-            },
-            eightDStatusChecker1: _status == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
-            eightDDateChecker1: new Date(),
+            } : {},
+            ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
+                status: ReportStatus.WaitForSupplier,
+                eightDReportSupplierStatus: ReportStatus.Rejected,
+                eightDReportSupplierDate: new Date(),
+                delayDocument: "8D Report",
+                eightDReportStatus: ReportStatus.Rejected,
+                eightDReportDate: new Date(),
+                eightDStatusChecker1: ReportStatus.Rejected,
+                eightDDateChecker1: new Date(),
+            } : {},
+            ..._status == "approve" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
+                delayDocument: "8D Report",
+                eightDStatusChecker1: ReportStatus.Approved,
+                eightDDateChecker1: new Date(),
+                eightDReportStatus: ReportStatus.Approved,
+                eightDReportDate: new Date(),
+            } : {},
             updatedBy: actionBy
         })
 
         const newValue = await this.findId(id)
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.REPORT_8D,
+            idQpr: newValue.id,
+            action: _status == "approve" ? LogAction.APPROVED : LogAction.REJECTED,
+            performedBy: actionBy,
+            IsDocumentOther: check.approve8dAndRejectDocOther == ActiveStatus.YES ? 'Y' : 'N',
+            performedAt: new Date(),
+            roleType: RoleType.CHECKER1,
+            remark: `${body.remark || ''}`,
+        })
+        await this.logRepository.save(objectNewLog);
+
         this.myGatewayGateway.sendMessage('reload-status', newValue);
         if (_status == "reject") {
             this.myGatewayGateway.sendMessage('reload-status-reject-8d', newValue);
@@ -759,6 +871,25 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.REPORT_8D,
+            idQpr: newValue.id,
+            performedBy: actionBy,
+            roleType: RoleType.APPROVER1,
+            IsDocumentOther: check.approve8dAndRejectDocOther == ActiveStatus.YES ? 'Y' : 'N',
+            performedAt: new Date(),
+            action: check.approve8dAndRejectDocOther == ActiveStatus.NO && _status == "approve" ? LogAction.APPROVED : (
+                check.approve8dAndRejectDocOther == ActiveStatus.NO && _status == "reject" ? LogAction.REJECTED : (
+                    check.approve8dAndRejectDocOther == ActiveStatus.YES && _status == "approve" ? LogAction.SUBMITED: (
+                        check.approve8dAndRejectDocOther == ActiveStatus.YES && _status == "reject" ? LogAction.REJECTED : LogAction.REJECTED
+                    )
+                )
+            ),
+            remark: `${body.remark || ''}`,
+        })
+        await this.logRepository.save(objectNewLog);
+
         this.myGatewayGateway.sendMessage('reload-status', newValue);
         if (_status == "reject") {
             this.myGatewayGateway.sendMessage('reload-status-reject-8d', newValue);
@@ -844,6 +975,20 @@ export class QprService {
 
         const newValue = await this.findId(id)
         this.myGatewayGateway.sendMessage('reload-status', newValue);
+
+        const objectNewLog = this.logRepository.create({
+            qprNo: newValue.qprIssueNo,
+            documentType: DocumentType.REPORT_8D,
+            idQpr: newValue.id,
+            IsDocumentOther: check.approve8dAndRejectDocOther == ActiveStatus.YES ? 'Y' : 'N',
+            action: _status == "approve" ? (approve8dAndRejectDocOther == ActiveStatus.YES ? LogAction.REJECTED : LogAction.APPROVED) : LogAction.REJECTED,
+            performedBy: actionBy,
+            performedAt: new Date(),
+            roleType: RoleType.APPROVER2,
+            remark: `${body.remark || ''}`,
+        })
+        await this.logRepository.save(objectNewLog);
+
         if (_status == "reject" || approve8dAndRejectDocOther == ActiveStatus.YES) {
             this.myGatewayGateway.sendMessage('reload-status-reject-8d', newValue);
         }
@@ -1514,8 +1659,8 @@ export class QprService {
                     size: 7,
                     font,
                     color: rgb(0, 0, 0),
-                    maxWidth: 250,
-                    lineHeight: 16
+                    maxWidth: 70,
+                    lineHeight: 10
                 });
             }
 
@@ -1530,8 +1675,8 @@ export class QprService {
                     size: 7,
                     font,
                     color: rgb(0, 0, 0),
-                    maxWidth: 250,
-                    lineHeight: 16
+                    maxWidth: 70,
+                    lineHeight: 10
                 });
             }
 
@@ -1546,8 +1691,8 @@ export class QprService {
                     size: 7,
                     font,
                     color: rgb(0, 0, 0),
-                    maxWidth: 250,
-                    lineHeight: 16
+                    maxWidth: 70,
+                    lineHeight: 10
                 });
             }
 
@@ -1571,18 +1716,22 @@ export class QprService {
     }
 
     ConvertImageToJPG = async (pathFigures: string): Promise<Buffer> => {
-        const fileExt = extname(pathFigures).toLowerCase();
-        let iconBytes: Buffer;
-
-        // 🔹 แปลงภาพเป็น JPG ก่อน (หากไม่ใช่ JPG)
-        if (fileExt !== '.jpg' && fileExt !== '.jpeg') {
-            iconBytes = await sharp(pathFigures).jpeg().toBuffer(); // แปลงเป็น JPG
-        } else {
-            iconBytes = readFileSync(pathFigures); // ถ้าเป็น JPG อยู่แล้ว อ่านไฟล์ตรงๆ
+        try {
+            const fileExt = extname(pathFigures).toLowerCase();
+            let iconBytes: Buffer;
+    
+            // 🔹 แปลงภาพเป็น JPG ก่อน (หากไม่ใช่ JPG)
+            if (fileExt !== '.jpg' && fileExt !== '.jpeg') {
+                iconBytes = await sharp(pathFigures).jpeg().toBuffer(); // แปลงเป็น JPG
+            } else {
+                iconBytes = readFileSync(pathFigures); // ถ้าเป็น JPG อยู่แล้ว อ่านไฟล์ตรงๆ
+            }
+    
+            return iconBytes;
+        } catch (error) {
+            throw new BadRequestException(`Failed to convert image to JPG: ${error.message}`)
         }
-
-        return iconBytes;
-    }
+    };
 
     DrawTextWithWrapping({
         page,
@@ -1736,38 +1885,38 @@ export class QprService {
                             x,
                             y,
                             width: 450,
-                            height: 100,
-                            borderColor: rgb(0, 0, 0),
-                            borderWidth: 1,
+                            height: 80,
+                            borderColor: rgb(0, 0.392, 0),
+                            borderWidth: 2,
                         });
 
                         page.drawText('(9) Opinion of JTEKT QA Dept.', {
-                            x: x + 3,
-                            y: (y + 90),
+                            x: x + 5,
+                            y: (y + 70),
                             size: 9,
-                            font: font,
-                            color: rgb(0, 0, 0),
+                            font: fontB,
+                            color: rgb(0, 0.392, 0),
                         })
 
                         this.DrawTextWithWrapping({
                             page,
                             text: `${object8D.remark || ''}`,
-                            x: x + 2,
-                            y: (y + 78),
+                            x: x + 4,
+                            y: (y + 58),
                             size: 9,
                             font: font,
-                            color: rgb(0, 0, 0),
+                            color: rgb(0, 0.392, 0),
                             maxWidth: 250,
                             lineHeight: 11
                         });
 
                         const tableX = x + 240;  // จุดเริ่มต้นของตาราง (X)
-                        let tableY = y + 100;   // จุดเริ่มต้นของตาราง (Y)
+                        let tableY = y + 80;   // จุดเริ่มต้นของตาราง (Y)
                         const colCount = 3; // จำนวนคอลัมน์
                         const cellWidth = 70; // ความกว้างของเซลล์
 
                         const columnHeaders = ["Approved", "Approved", "Checked"];
-                        const rowHeights = [20, 20, 40, 20]; // ความสูงของแต่ละแถว
+                        const rowHeights = [20, 15, 30, 15]; // ความสูงของแต่ละแถว
                         const values = [checker3?.updatedBy || undefined, checker2?.updatedBy || undefined , checker1?.updatedBy || undefined]
                         const valuesUpdate = [checker3?.updatedAt || undefined, checker2?.updatedAt || undefined , checker1?.updatedAt || undefined]
 
@@ -1776,14 +1925,14 @@ export class QprService {
                         for (let row = 0; row < rowHeights.length; row++) {
                             const height = rowHeights[row];
                             const xx = x + 240;
-                            const yy = y + 80;
+                            const yy = y + 60;
                             if (row === 0) {
                                 page.drawRectangle({
                                     x: xx,
                                     y: yy,
                                     width: 20 + 20 + 40 + 20 + 110,
                                     height,
-                                    borderColor: rgb(0, 0, 0),
+                                    borderColor: rgb(0, 0.392, 0),
                                     borderWidth: 1,
                                 });
                             }
@@ -1798,7 +1947,7 @@ export class QprService {
                                         y,
                                         width: cellWidth,
                                         height,
-                                        borderColor: rgb(0, 0, 0),
+                                        borderColor: rgb(0, 0.392, 0),
                                         borderWidth: 1,
                                     });
                                 }
@@ -1809,6 +1958,7 @@ export class QprService {
                                         x: x + 35,
                                         y: y + 5,
                                         size: 11,
+                                        color: rgb(0, 0.392, 0),
                                         font: fontB,
                                     });
                                 }
@@ -1819,6 +1969,7 @@ export class QprService {
                                         x: x + 13,
                                         y: y + 5,
                                         size: 9,
+                                        color: rgb(0, 0.392, 0),
                                         font: fontB,
                                     });
                                 }
@@ -1831,7 +1982,7 @@ export class QprService {
                                         y: y + 20,
                                         size: 9,
                                         font: fontB,
-                                        color: rgb(0, 0, 0),
+                                        color: rgb(0, 0.392, 0),
                                         maxWidth: 70,
                                         lineHeight: 10
                                     });
@@ -1843,6 +1994,7 @@ export class QprService {
                                         y: y + 5,
                                         size: 9,
                                         font: fontB,
+                                        color: rgb(0, 0.392, 0),
                                     });
                                 }
                             }
@@ -1860,7 +2012,7 @@ export class QprService {
             throw new NotFoundException(`File not found.`);
 
         } catch (e) {
-            console.error('Error processing ViewFileDrawing:', e.message);
+            console.error('Error processing View File 8D:', e.message);
             throw new BadRequestException(e.message || 'An error occurred while processing the PDF.');
         }
     }
