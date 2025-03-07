@@ -99,6 +99,15 @@ export class UsersController {
         return this.usersService.fixPassword(updatePasswordDto);
     }
 
+    @Put('reset-password')
+    @UseGuards(JwtAuthGuard)
+    resetPasswordUser(
+        @Body() updatePasswordDto: UpdatePasswordDto,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.usersService.fixPassword({ ...updatePasswordDto, id: actionBy.id });
+    }
+
     @Put(':id')
     @UseGuards(JwtAuthGuard)
     @UseInterceptors(FileInterceptor('image', {

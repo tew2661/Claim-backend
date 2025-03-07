@@ -34,7 +34,8 @@ export class LogsService {
         ...query.qprNo ? { qprNo: Like(`%${query.qprNo}%`) } : {},
         ...query.user ? { performedBy: { id: query.user } } : {},
         ...query.documentType ? { documentType: query.documentType} : {},
-        ...query.action ? { action: query.action } : {}
+        ...query.action ? { action: query.action } : {},
+        ...query.roleType ? { roleType: query.roleType } : {}
     }];
 
     const [data, total] = await this.logRepository.findAndCount({

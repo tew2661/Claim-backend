@@ -1,5 +1,5 @@
 import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
-import { LogAction, DocumentType } from '../entities/log.entity';
+import { LogAction, DocumentType, RoleType } from '../entities/log.entity';
 import { Type } from 'class-transformer';
 
 export class FilterLogDto {
@@ -19,4 +19,8 @@ export class FilterLogDto {
   @IsOptional()
   @IsEnum(LogAction)
   action?: LogAction;
+
+  @IsOptional()
+  @IsEnum(RoleType)
+  roleType?: RoleType;
 }

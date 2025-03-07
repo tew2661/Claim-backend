@@ -1,4 +1,5 @@
 
+import * as moment from 'moment';
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 import {
     Entity,
@@ -44,6 +45,12 @@ export class UsersEntity {
 
     @Column({ type: 'nvarchar', name: '_active', length: 1, nullable: true, default: ActiveStatus.NO })
     active: string;
+
+    @Column({ type: 'nvarchar', length: 1, nullable: false, default: ActiveStatus.NO })
+    accessMasterManagement: string
+
+    @Column({ nullable: true })
+    expiresPassword: Date;
 
     @Column({ type: 'nvarchar', name: '_activeRow', length: 1, nullable: false, default: ActiveStatus.YES })
     activeRow: string;

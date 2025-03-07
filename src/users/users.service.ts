@@ -10,6 +10,7 @@ import { configPath } from 'src/path-files-config';
 import { GetUserDto } from './dto/get-user.dto';
 import { MyGatewayGateway } from 'src/my-gateway/my-gateway.gateway';
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
+import * as moment from 'moment';
 
 @Injectable()
 export class UsersService {
@@ -92,9 +93,10 @@ export class UsersService {
         }
 
         const saltRounds = 10;
-
+        let listPasswordc = false;
         // เข้ารหัสรหัสผ่านก่อนบันทึก
         if (createUserDto.password) {
+            listPasswordc = 'P@ssw0rd' == createUserDto.password
             createUserDto.password = await bcrypt.hash(createUserDto.password, saltRounds);
         }
 
@@ -102,6 +104,7 @@ export class UsersService {
             ...createUserDto,
             ...supplier ? { supplier } : {},
             active: ActiveStatus.YES,
+            expiresPassword: listPasswordc ? undefined : moment().add(3, 'M').toDate(),
             image: (imageFilename) ? (`${configPath.pathFileUser}/${imageFilename}`) : null,
         };
 
@@ -156,6 +159,7 @@ export class UsersService {
         }
 
         if (updateUserDto.password) {
+            fieldUpdate.expiresPassword = updateUserDto.password == 'P@ssw0rd' ? undefined : moment().add(3, 'M').toDate(),
             fieldUpdate.password = await bcrypt.hash(updateUserDto.password, saltRounds);
         }
 
@@ -201,9 +205,13 @@ export class UsersService {
         const dataUser = await this.findOne(updatePasswordDto.id);
         if (updatePasswordDto.newPassword) {
             fieldUpdate.password = await bcrypt.hash(updatePasswordDto.newPassword, saltRounds);
+            fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? undefined : moment().add(3, 'M').toDate()
         }
         await this.usersRepository.update(dataUser.id, fieldUpdate);
-        return dataUser;
+
+        const newValue = await this.findOne(dataUser.id);
+        this.myGatewayGateway.sendMessage('update-user', newValue);
+        return newValue;
     }
 
     async validateUser(username: string, plainPassword: string): Promise<UsersEntity> {
