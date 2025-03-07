@@ -180,7 +180,7 @@ export class UsersService {
         }
 
         await this.usersRepository.update(user.id, fieldUpdate);
-        const newValue = await this.findOne(user.id);
+        const newValue = await this.findOneAll(user.id);
         this.myGatewayGateway.sendMessage('update-user', newValue);
 
         return newValue;
@@ -202,14 +202,14 @@ export class UsersService {
         const saltRounds = 10;
         const fieldUpdate: DeepPartial<UsersEntity> = {}
 
-        const dataUser = await this.findOne(updatePasswordDto.id);
+        const data = await this.findOneAll(updatePasswordDto.id);
         if (updatePasswordDto.newPassword) {
             fieldUpdate.password = await bcrypt.hash(updatePasswordDto.newPassword, saltRounds);
             fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? undefined : moment().add(3, 'M').toDate()
         }
-        await this.usersRepository.update(dataUser.id, fieldUpdate);
+        await this.usersRepository.update(data.id, fieldUpdate);
 
-        const newValue = await this.findOne(dataUser.id);
+        const newValue = await this.findOneAll(data.id);
         this.myGatewayGateway.sendMessage('update-user', newValue);
         return newValue;
     }

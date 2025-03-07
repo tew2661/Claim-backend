@@ -1,5 +1,5 @@
 
-import * as moment from 'moment';
+
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 import {
     Entity,
