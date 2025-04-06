@@ -108,11 +108,10 @@ export class QprController {
     @UseGuards(JwtAuthGuard)
     async findAll(@Query() Query : GetQprDto) {
         const qpr = await this.qprService.findAll(Query);
-        const count = await this.qprService.count(Query);
         return {
             statusCode: 200,
-            data: qpr,
-            total: count
+            data: qpr[0],
+            total: qpr[1]
         }
     }
 

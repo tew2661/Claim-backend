@@ -11,23 +11,25 @@ import { GetUserDto } from './dto/get-user.dto';
 import { MyGatewayGateway } from 'src/my-gateway/my-gateway.gateway';
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 import * as moment from 'moment';
+import { EmailService } from 'src/email/email.service';
 
 @Injectable()
 export class UsersService {
     constructor(
         @InjectRepository(UsersEntity)
         private readonly usersRepository: Repository<UsersEntity>, // AuthEntity
-        private readonly myGatewayGateway: MyGatewayGateway
+        private readonly myGatewayGateway: MyGatewayGateway,
+        private readonly emailService: EmailService
     ) { }
 
 
-    findAll(query: GetUserDto):Promise<UsersEntity[]> {
-        return this.usersRepository.find({ 
+    findAll(query: GetUserDto): Promise<UsersEntity[]> {
+        return this.usersRepository.find({
             skip: query.offset,
             take: query.limit,
             where: {
-                ...query.name ? { name: Like(`%${query.name || ''}%`)} : {} ,
-                ...query.code ? { code: Like(`%${query.code || ''}%`)} : {} ,
+                ...query.name ? { name: Like(`%${query.name || ''}%`) } : {},
+                ...query.code ? { code: Like(`%${query.code || ''}%`) } : {},
                 activeRow: ActiveStatus.YES,
                 supplier: IsNull()
             },
@@ -37,8 +39,8 @@ export class UsersService {
     count(query: GetUserDto): Promise<number> {
         return this.usersRepository.count({
             where: {
-                ...query.name ? { name: Like(`%${query.name || ''}%`)} : {} ,
-                ...query.code ? { code: Like(`%${query.code || ''}%`)} : {} ,
+                ...query.name ? { name: Like(`%${query.name || ''}%`) } : {},
+                ...query.code ? { code: Like(`%${query.code || ''}%`) } : {},
                 activeRow: ActiveStatus.YES,
                 supplier: IsNull()
             },
@@ -81,13 +83,30 @@ export class UsersService {
         return this.usersRepository.findOne({ where: { email, activeRow: ActiveStatus.YES, supplier: IsNull() } });
     }
 
-    async create(createUserDto: CreateUserDto, supplier?: SupplierEntity, imageFilename?: string , isSupplier?: boolean): Promise<UsersEntity> {
-        const user = await this.usersRepository.findOne({ where: { email: createUserDto.email, activeRow: ActiveStatus.YES, ...isSupplier? { supplier: Not(IsNull()) }: { supplier: IsNull() }} });
-        if (user) {
-            throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
-        }
+    async create(createUserDto: CreateUserDto, supplier?: SupplierEntity, imageFilename?: string, isSupplier?: boolean): Promise<UsersEntity> {
+        // const user = await this.usersRepository.findOne({ 
+        //     where: { 
+        //         email: createUserDto.email, 
+        //         activeRow: ActiveStatus.YES, 
+        //         ...isSupplier ? { 
+        //             supplier: Not(IsNull()) 
+        //         } : { 
+        //             supplier: IsNull() 
+        //         } 
+        //     } 
+        // });
+        // if (user) {
+        //     throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
+        // }
 
-        const user2 = await this.usersRepository.findOne({ where: { code: createUserDto.code, activeRow: ActiveStatus.YES , ...isSupplier? { supplier: Not(IsNull()) }: { supplier: IsNull() }} });
+        const user2 = await this.usersRepository.findOne({
+            where: {
+                code: createUserDto.code,
+                activeRow: ActiveStatus.YES,
+                ...isSupplier ? { supplier: Not(IsNull()) } : { supplier: IsNull() }
+            }
+        });
+
         if (user2) {
             throw new ConflictException('รหัสพนักงาน นี้ถูกใช้งานแล้ว')
         }
@@ -95,10 +114,8 @@ export class UsersService {
         const saltRounds = 10;
         let listPasswordc = false;
         // เข้ารหัสรหัสผ่านก่อนบันทึก
-        if (createUserDto.password) {
-            listPasswordc = 'P@ssw0rd' == createUserDto.password
-            createUserDto.password = await bcrypt.hash(createUserDto.password, saltRounds);
-        }
+        listPasswordc = true
+        createUserDto.password = await bcrypt.hash('P@ssw0rd', saltRounds);
 
         const createUser: DeepPartial<UsersEntity> = {
             ...createUserDto,
@@ -110,26 +127,63 @@ export class UsersService {
 
         const newUser = this.usersRepository.create(createUser);
         const data = await this.usersRepository.save(newUser);
+
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+                <head>
+                <meta charset="utf-8" />
+                <title>Welcome to SCM</title>
+                </head>
+                <body>
+                <p>Dear ${data.name},</p>
+                <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                </p>
+                <p>
+                    <a href="${isSupplier ? (process.env.MAIL_LINK_WEBAPP_SUPPLIER || '') : (process.env.MAIL_LINK_WEBAPP_JTEKT || '')}">${isSupplier ? (process.env.MAIL_LINK_WEBAPP_SUPPLIER || '') : (process.env.MAIL_LINK_WEBAPP_JTEKT || '')}</a>
+                </p>
+                <p>
+                    Username: <strong>${data.code}</strong><br />
+                    Password: <strong>${'P@ssw0rd'}</strong>
+                </p>
+                <p>Thank you and Best regards,</p>
+                <p><strong>ทีมงาน SCM</strong></p>
+                <p style="font-size: small; color: #888;">
+                    [THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]
+                </p>
+                </body>
+            </html>
+        `;
+
+        this.emailService.sendEmail(
+            data.email,
+            'Welcome to SCM',
+            htmlContent,
+        );
+        
         return await this.findOne(data.id);
     }
 
     async update(id: number, updateUserDto: UpdateUserDto, actionBy: UsersEntity, imageFilename?: string, isSupplier?: boolean): Promise<UsersEntity> {
-        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, ...isSupplier? { supplier: Not(IsNull()) }: { supplier: IsNull() } } });
+        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, ...isSupplier ? { supplier: Not(IsNull()) } : { supplier: IsNull() } } });
         if (!user) {
             throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
         }
-        
+
         const saltRounds = 10;
 
         const fieldUpdate: DeepPartial<UsersEntity> = {}
 
         if (updateUserDto.code) {
-            const user2 = await this.usersRepository.findOne({ where: { 
-                code: updateUserDto.code, 
-                activeRow: ActiveStatus.YES ,
-                id: Not(id),
-                supplier: IsNull()
-            } });
+            const user2 = await this.usersRepository.findOne({
+                where: {
+                    code: updateUserDto.code,
+                    activeRow: ActiveStatus.YES,
+                    id: Not(id),
+                    supplier: IsNull()
+                }
+            });
             if (user2) {
                 throw new ConflictException('รหัสพนักงาน นี้ถูกใช้งานแล้ว')
             }
@@ -146,12 +200,14 @@ export class UsersService {
         }
 
         if (updateUserDto.email) {
-            const user2 = await this.usersRepository.findOne({ where: { 
-                email: updateUserDto.email , 
-                id: Not(id), 
-                activeRow: ActiveStatus.YES ,
-                supplier: IsNull()
-            }});
+            const user2 = await this.usersRepository.findOne({
+                where: {
+                    email: updateUserDto.email,
+                    id: Not(id),
+                    activeRow: ActiveStatus.YES,
+                    supplier: IsNull()
+                }
+            });
             if (user2) {
                 throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
             }
@@ -160,7 +216,7 @@ export class UsersService {
 
         if (updateUserDto.password) {
             fieldUpdate.expiresPassword = updateUserDto.password == 'P@ssw0rd' ? undefined : moment().add(3, 'M').toDate(),
-            fieldUpdate.password = await bcrypt.hash(updateUserDto.password, saltRounds);
+                fieldUpdate.password = await bcrypt.hash(updateUserDto.password, saltRounds);
         }
 
         if (imageFilename) {
@@ -198,7 +254,7 @@ export class UsersService {
         });
     }
 
-    async fixPassword(updatePasswordDto: UpdatePasswordDto) : Promise<UsersEntity> {
+    async fixPassword(updatePasswordDto: UpdatePasswordDto): Promise<UsersEntity> {
         const saltRounds = 10;
         const fieldUpdate: DeepPartial<UsersEntity> = {}
 
@@ -243,8 +299,8 @@ export class UsersService {
     }
 
     findAllForDropdown() {
-        return this.usersRepository.find({ 
-            select: ["id" , "name" ],
+        return this.usersRepository.find({
+            select: ["id", "name"],
             where: {
                 supplier: IsNull(),
                 activeRow: ActiveStatus.YES,
@@ -252,4 +308,3 @@ export class UsersService {
         });
     }
 }
- 

@@ -196,6 +196,10 @@ export class Save8DChecker1 {
     @IsOptional()
     remark?: string; // หมายเหตุ (อาจว่างเปล่า)
 
+    @IsString()
+    @IsOptional()
+    duedate8d?: string;
+
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => DocumentOtherDto)

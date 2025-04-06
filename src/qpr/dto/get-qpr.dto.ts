@@ -29,7 +29,7 @@ export class ExportExcelDto {
 
     @IsString()
     @IsOptional()
-    page?: 'qpr-report' | '8d-report' | 'checker1' | 'checker2' | 'checker3' | 'delay' ;
+    page?: 'qpr-report' | '8d-report' | 'checker1' | 'checker2' | 'checker3' | 'delay' | 'action-list' ;
 }
 
 export class GetQprDto extends ExportExcelDto {

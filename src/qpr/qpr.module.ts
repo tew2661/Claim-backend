@@ -9,6 +9,7 @@ import { QprEntity } from './entities/qpr.entity';
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 import { NotificationModule } from 'src/my-gateway/my-gateway.module';
 import { LogEntity } from 'src/logs/entities/log.entity';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   controllers: [QprController],
@@ -21,7 +22,8 @@ import { LogEntity } from 'src/logs/entities/log.entity';
     ]),
     forwardRef(() => AuthModule),
     UsersModule,
-    NotificationModule
+    NotificationModule,
+    EmailModule
   ]
 })
 export class QprModule {}

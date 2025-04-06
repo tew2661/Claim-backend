@@ -9,7 +9,6 @@ import {
     UpdateDateColumn,
     DeleteDateColumn,
     ManyToOne,
-    OneToOne,
 } from 'typeorm';
 
 export enum ActiveStatus {

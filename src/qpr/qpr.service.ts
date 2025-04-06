@@ -3,7 +3,7 @@ import { ActiveStatus } from './../users/entities/users.entity';
 import { BadGatewayException, BadRequestException, Injectable, NotAcceptableException, NotFoundException } from '@nestjs/common';
 import { CreateQprDto } from './dto/create-qpr.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, LessThan, Like, MoreThan, Not, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, IsNull, LessThan, Like, MoreThan, Not, Repository } from 'typeorm';
 import { QprEntity, ReportStatus } from './entities/qpr.entity';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { configPath } from 'src/path-files-config';
@@ -22,6 +22,7 @@ import * as fontkit from '@pdf-lib/fontkit';
 import * as sharp from 'sharp';
 import * as fs from 'fs';
 import { DocumentType, LogAction, LogEntity, RoleType } from 'src/logs/entities/log.entity';
+import { EmailService } from 'src/email/email.service';
 
 @Injectable()
 export class QprService {
@@ -32,7 +33,8 @@ export class QprService {
         private readonly supplierRepository: Repository<SupplierEntity>,
         @InjectRepository(LogEntity)
         private readonly logRepository: Repository<LogEntity>,
-        private readonly myGatewayGateway: MyGatewayGateway
+        private readonly myGatewayGateway: MyGatewayGateway,
+        private readonly emailService: EmailService
     ) { }
     async create(createQprDto: CreateQprDto, actionBy: UsersEntity): Promise<QprEntity> {
         const haveNo = await this.qprRepository.findOne({ where: { qprIssueNo: createQprDto.qprIssueNo, activeRow: ActiveStatus.YES } });
@@ -40,7 +42,9 @@ export class QprService {
             throw new BadGatewayException(`เลข QPR Issue No : ${createQprDto.qprIssueNo} มีอยู่แล้ว`);
         }
 
-        const haveSupplier = await this.supplierRepository.findOne({ where: { supplierCode: createQprDto.supplierCode, activeRow: ActiveStatus.YES } })
+        const haveSupplier = await this.supplierRepository.findOne({ 
+            where: { supplierCode: createQprDto.supplierCode, activeRow: ActiveStatus.YES } 
+        })
         if (!haveSupplier) {
             throw new BadGatewayException(`ไม่พบ SupplierCode : ${createQprDto.supplierCode} , หรือถูกปิดใช้งาน user นี้ `);
         }
@@ -79,9 +83,43 @@ export class QprService {
             updatedBy: actionBy,
             activeRow: ActiveStatus.YES
         });
-        // บันทึกข้อมูลลงในฐานข้อมูลและคืนค่า entity ที่ถูกบันทึก
-        
         const newValue = await this.qprRepository.save(newQpr);
+
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <title>Quick Action Report Notification</title>
+            </head>
+            <body>
+                <p>Dear ${haveSupplier.supplierName},</p>
+                <p>
+                You have received a QUICK ACTION REPORT notification. The status is
+                <strong style="color: blue">"NEW REQUEST"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                </p>
+                <p>
+                Please input and submit the QUICK ACTION REPORT by
+                <strong style="color: blue"> ${moment(newValue.createdAt).format('DD-MM-YYYY HH:mm')}</strong>.
+                </p>
+                <p>
+                Please access Supplier Claim Management (SCM) through the link below:
+                <br />
+                    <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                </p>
+                <p>Thank you and Best regards,</p>
+                <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+            </body>
+            </html>
+        `;
+
+        this.emailService.sendEmail(
+            (haveSupplier.email || []).join(','),
+            'Quick Action Report Notification',
+            htmlContent,
+        );
+
+        
         const objectNewLog = this.logRepository.create({
             qprNo: newValue.qprIssueNo,
             idQpr: newValue.id,
@@ -94,7 +132,7 @@ export class QprService {
         })
         await this.logRepository.save(objectNewLog);
         this.myGatewayGateway.sendMessage('create-qpr', newValue);
-        
+
         return
     }
 
@@ -109,67 +147,83 @@ export class QprService {
         return data;
     }
 
-    count(query: GetQprDto): Promise<number> {
-        return this.qprRepository.count({
-            where: {
-                ...query.date ? {
-                    dateReported: Between(
-                        moment(moment(query.date).format('YYYY-MM-DD 00:00:00')).toDate(),
-                        moment(moment(query.date).format('YYYY-MM-DD 23:59:59')).toDate(),
-                    )
-                } : {},
-                ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
-                ...query.severity ? { importanceLevel: query.severity } : {},
-                ...query.status && query.status == 'approved-quick-report' ? { quickReportStatus: ReportStatus.Approved } : {},
-                ...query.status && query.status == 'wait-for-supplier-quick-report' ? { quickReportStatus: ReportStatus.WaitForSupplier } : {},
-                ...query.status && query.status == 'rejected-quick-report' ? { quickReportStatus: ReportStatus.Rejected } : {},
-                ...query.status && query.status == 'approved-8d-report' ? { eightDReportStatus: ReportStatus.Approved } : {},
-                ...query.status && query.status == 'wait-for-supplier-8d-report' ? { eightDReportStatus: ReportStatus.WaitForSupplier } : {},
-                ...query.status && query.status == 'rejected-8d-report' ? { eightDReportStatus: ReportStatus.Rejected } : {},
-                ...query.page && query.page == '8d-report' ? { quickReportStatus: ReportStatus.Approved } : {},
-                ...query.page && query.page == '8d-report' ? { delayDocument: "8D Report" } : {},
-                ...query.page && query.page == 'qpr-report' ? { delayDocument: "Quick Report" } : {},
-                ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
-                ...query.reportType && query.reportType == 'quick-report' ? { delayDocument: "Quick Report" } : {},
-                ...query.reportType && query.reportType == '8d-report' ? { delayDocument: "8D Report" } : {},
-                activeRow: ActiveStatus.YES,
-            },
-        });
+    findAll(query: GetQprDto): Promise<[QprEntity[], number]> {
+        const queryBuilder = this.qprRepository
+            .createQueryBuilder("qpr")
+            .leftJoinAndSelect("qpr.supplier", "supplier")
+            .where("qpr.activeRow = :activeRow", { activeRow: ActiveStatus.YES });
+
+        // กรองวันที่
+        if (query.date) {
+            queryBuilder.andWhere("qpr.dateReported BETWEEN :startDate AND :endDate", {
+                startDate: moment(query.date).startOf("day").toDate(),
+                endDate: moment(query.date).endOf("day").toDate(),
+            });
+        }
+
+        // กรอง QPR No
+        if (query.qprNo) {
+            queryBuilder.andWhere("qpr.qprIssueNo LIKE :qprNo", { qprNo: `%${query.qprNo}%` });
+        }
+
+        // กรองความสำคัญ
+        if (query.severity) {
+            queryBuilder.andWhere("qpr.importanceLevel = :severity", { severity: query.severity });
+        }
+
+        // กรอง status ตามประเภทของ page
+        if (query.status && (query.page === "action-list" || query.page === "qpr-report" || query.page === "8d-report")) {
+            if (query.status === "approved-quick-report") {
+                queryBuilder.andWhere("qpr.quickReportSupplierStatus = :approvedQuick", { approvedQuick: ReportStatus.Approved });
+            } else if (query.status === "wait-for-supplier-quick-report") {
+                queryBuilder.andWhere("(qpr.quickReportSupplierStatus IS NULL OR qpr.quickReportSupplierStatus = :waitForSupplierQuick)", { waitForSupplierQuick: ReportStatus.WaitForSupplier });
+            } else if (query.status === "rejected-quick-report") {
+                queryBuilder.andWhere("qpr.quickReportSupplierStatus = :rejectedQuick", { rejectedQuick: ReportStatus.Rejected });
+            } else if (query.status === "approved-8d-report") {
+                queryBuilder.andWhere("qpr.eightDReportSupplierStatus = :approved8d", { approved8d: ReportStatus.Approved });
+            } else if (query.status === "wait-for-supplier-8d-report") {
+                queryBuilder.andWhere("(qpr.eightDReportSupplierStatus IS NULL OR qpr.eightDReportSupplierStatus = :waitForSupplier8d)", { waitForSupplier8d: ReportStatus.WaitForSupplier });
+            } else if (query.status === "rejected-8d-report") {
+                queryBuilder.andWhere("qpr.eightDReportSupplierStatus = :rejected8d", { rejected8d: ReportStatus.Rejected });
+            }
+        } else if (query.status && query.page === "8d-report") {
+            if (query.status === "approved-quick-report") {
+                queryBuilder.andWhere("qpr.quickReportStatus = :approvedQuick", { approvedQuick: ReportStatus.Approved });
+            } else if (query.status === "wait-for-supplier-quick-report") {
+                queryBuilder.andWhere("(qpr.quickReportStatus IS NULL OR qpr.quickReportStatus = :waitForSupplierQuick)", { waitForSupplierQuick: ReportStatus.WaitForSupplier });
+            } else if (query.status === "rejected-quick-report") {
+                queryBuilder.andWhere("qpr.quickReportStatus = :rejectedQuick", { rejectedQuick: ReportStatus.Rejected });
+            } else if (query.status === "approved-8d-report") {
+                queryBuilder.andWhere("qpr.eightDReportStatus = :approved8d", { approved8d: ReportStatus.Approved });
+            } else if (query.status === "wait-for-supplier-8d-report") {
+                queryBuilder.andWhere("(qpr.eightDReportStatus IS NULL OR qpr.eightDReportStatus = :waitForSupplier8d)", { waitForSupplier8d: ReportStatus.WaitForSupplier });
+            } else if (query.status === "rejected-8d-report") {
+                queryBuilder.andWhere("qpr.eightDReportStatus = :rejected8d", { rejected8d: ReportStatus.Rejected });
+            }
+        }
+
+        // กรอง supplier
+        if (query.supplier) {
+            queryBuilder.andWhere("supplier.supplierCode = :supplier", { supplier: query.supplier });
+        }
+
+        // กรอง reportType
+        if (query.reportType) {
+            if (query.reportType === "quick-report") {
+                queryBuilder.andWhere("qpr.delayDocument = :quickReport", { quickReport: "Quick Report" });
+            } else if (query.reportType === "8d-report") {
+                queryBuilder.andWhere("qpr.delayDocument = :eightDReport", { eightDReport: "8D Report" });
+            }
+        }
+
+        // เรียงลำดับและแบ่งหน้า
+        queryBuilder.orderBy("qpr.createdAt", "DESC")
+            .skip(query.offset)
+            .take(query.limit);
+
+        return queryBuilder.getManyAndCount();
     }
 
-    findAll(query: GetQprDto): Promise<QprEntity[]> {
-        return this.qprRepository.find({
-            relations: ['supplier'],
-            skip: query.offset,
-            take: query.limit,
-            where: [{
-                ...query.date ? {
-                    dateReported: Between(
-                        moment(moment(query.date).format('YYYY-MM-DD 00:00:00')).toDate(),
-                        moment(moment(query.date).format('YYYY-MM-DD 23:59:59')).toDate(),
-                    )
-                } : {},
-                ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
-                ...query.severity ? { importanceLevel: query.severity } : {},
-                ...query.status && query.status == 'approved-quick-report' ? { quickReportStatus: ReportStatus.Approved } : {},
-                ...query.status && query.status == 'wait-for-supplier-quick-report' ? { quickReportStatus: ReportStatus.WaitForSupplier } : {},
-                ...query.status && query.status == 'rejected-quick-report' ? { quickReportStatus: ReportStatus.Rejected } : {},
-                ...query.status && query.status == 'approved-8d-report' ? { eightDReportStatus: ReportStatus.Approved } : {},
-                ...query.status && query.status == 'wait-for-supplier-8d-report' ? { eightDReportStatus: ReportStatus.WaitForSupplier } : {},
-                ...query.status && query.status == 'rejected-8d-report' ? { eightDReportStatus: ReportStatus.Rejected } : {},
-                ...query.page && query.page == '8d-report' ? { quickReportStatus: ReportStatus.Approved } : {},
-                ...query.page && query.page == '8d-report' ? { delayDocument: "8D Report" } : {},
-                ...query.page && query.page == 'qpr-report' ? { delayDocument: "Quick Report" } : {},
-                ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
-                ...query.reportType && query.reportType == 'quick-report' ? { delayDocument: "Quick Report" } : {},
-                ...query.reportType && query.reportType == '8d-report' ? { delayDocument: "8D Report" } : {},
-                activeRow: ActiveStatus.YES,
-            }],
-            order: {
-                createdAt: 'DESC'
-            }
-        });
-    }
 
     async findAllDelay(query: GetQprDto) {
         const where: FindOptionsWhere<QprEntity> | FindOptionsWhere<QprEntity>[] = [{
@@ -385,11 +439,11 @@ export class QprService {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
                 quickReportStatus: ReportStatus.Rejected,
-                quickReportDate:new Date(),
+                quickReportDate: new Date(),
                 replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {
                 quickReportStatus: ReportStatus.Approved,
-                quickReportDate:new Date(),
+                quickReportDate: new Date(),
             },
             quickReportStatusChecker1: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker1: new Date(),
@@ -397,6 +451,42 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+        if (newValue.quickReportStatusChecker1 === ReportStatus.Rejected) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected Quick Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>QUICK ACTION REPORT</strong> notification. The status is
+                    <strong style="color: red">"REJECTED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    Please input and submit <strong style="color: blue">QUICK ACTION REPORT</strong> by
+                    <strong style="color: blue"> ${moment(newValue.replyQuickAction).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Rejected Quick Report',
+                htmlContent,
+            );
+        }
+
         const objectNewLog = this.logRepository.create({
             qprNo: newValue.qprIssueNo,
             documentType: DocumentType.QUICK_REPORT,
@@ -412,7 +502,7 @@ export class QprService {
         if (body.approve == "reject") {
             this.myGatewayGateway.sendMessage('reload-status-reject-qpr', newValue);
         }
-        
+
         return newValue;
 
     }
@@ -438,11 +528,11 @@ export class QprService {
                 quickReportSupplierStatus: ReportStatus.Rejected,
                 quickReportSupplierDate: new Date(),
                 quickReportStatus: ReportStatus.Rejected,
-                quickReportDate:new Date(),
+                quickReportDate: new Date(),
                 replyQuickAction: body.resummit ? moment(body.resummit).toDate() : null,
             } : {
                 quickReportStatus: ReportStatus.Approved,
-                quickReportDate:new Date(),
+                quickReportDate: new Date(),
             },
             quickReportStatusChecker2: body.approve == "approve" ? ReportStatus.Approved : ReportStatus.Rejected,
             quickReportDateChecker2: new Date(),
@@ -451,6 +541,42 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+        if (newValue.quickReportStatusChecker2 === ReportStatus.Rejected) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected Quick Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>QUICK ACTION REPORT</strong> notification. The status is
+                    <strong style="color: red">"REJECTED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    Please input and submit <strong style="color: blue">QUICK ACTION REPORT</strong> by
+                    <strong style="color: blue"> ${moment(newValue.replyQuickAction).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Rejected Quick Report',
+                htmlContent,
+            );
+        }
+
         const objectNewLog = this.logRepository.create({
             qprNo: newValue.qprIssueNo,
             documentType: DocumentType.QUICK_REPORT,
@@ -510,6 +636,77 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+
+        if (newValue.quickReportStatusChecker3 === ReportStatus.Approved) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Approved Quick Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>QUICK ACTION REPORT</strong> notification. The status is
+                    <strong style="color: green">"APPROVED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    Please input and submit <strong style="color: blue">8D Report and Document</strong> by
+                    <strong style="color: blue"> ${moment(newValue.replyReport).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Approved Quick Report',
+                htmlContent,
+            );
+        } else if (newValue.quickReportStatusChecker3 === ReportStatus.Rejected) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected Quick Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>QUICK ACTION REPORT</strong> notification. The status is
+                    <strong style="color: red">"REJECTED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    Please input and submit <strong style="color: blue">QUICK ACTION REPORT</strong> by
+                    <strong style="color: blue"> ${moment(newValue.replyQuickAction).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Rejected Quick Report',
+                htmlContent,
+            );
+        }
+
         const objectNewLog = this.logRepository.create({
             qprNo: newValue.qprIssueNo,
             documentType: DocumentType.QUICK_REPORT,
@@ -738,6 +935,9 @@ export class QprService {
             status: ReportStatus.Inprocess,
 
             ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.NO ? {
+                eightDStatusChecker1: ReportStatus.Rejected,
+                eightDDateChecker1: new Date(),
+                replyReport: moment(body.duedate8d).toDate(),
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
                 eightDReportStatus: ReportStatus.Rejected,
@@ -750,6 +950,7 @@ export class QprService {
                 eightDReportDate: new Date(),
             } : {},
             ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
+                replyReport: moment(body.duedate8d).toDate(),
                 status: ReportStatus.WaitForSupplier,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
@@ -770,6 +971,107 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+
+        if (newValue.eightDStatusChecker1 === ReportStatus.Rejected && check.approve8dAndRejectDocOther == ActiveStatus.NO) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>8D REPORT and DOCUMENT</strong> notification. The status is
+                    <strong style="color: red">"REJECTED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    Please input and submit <strong style="color: blue">8D REPORT and DOCUMENT</strong> by
+                    <strong style="color: blue"> ${moment(newValue.replyReport).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Rejected 8D Report',
+                htmlContent,
+            );
+        } else if (_status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>8D REPORT</strong> notification. The status is
+                    <strong style="color: green">"APPROVED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    To Complete QPR No, Please Submit <strong style="color: blue">DOCUMENT</strong> by
+                    <strong style="color: blue"> ${moment(body.dueDateReqDocumentOther).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Completed 8D Report and rejected Document',
+                htmlContent,
+            );
+        } else if (_status == "approve" && check.approve8dAndRejectDocOther == ActiveStatus.YES) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received, <strong>8D REPORT and DOCUMENT</strong> Status is
+                    <strong style="color: green">"COMPLETED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Completed 8D Report and Document',
+                htmlContent,
+            );
+        }
+
         const objectNewLog = this.logRepository.create({
             qprNo: newValue.qprIssueNo,
             documentType: DocumentType.REPORT_8D,
@@ -814,7 +1116,7 @@ export class QprService {
                 _status = 'reject'
             }
         }
-        
+
 
         await this.qprRepository.update(id, {
             object8DReportDto: check.object8DReportDto.map((arr: Object8DReportDto, index) => {
@@ -836,6 +1138,9 @@ export class QprService {
             // quickReportStatus: ReportStatus.Approved,
             // quickReportDate: new Date(),
             ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.NO ? {
+                eightDStatusChecker2: ReportStatus.Rejected,
+                eightDDateChecker2: new Date(),
+                replyReport: moment(body.duedate8d).toDate(),
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
                 eightDReportStatus: ReportStatus.Rejected,
@@ -848,6 +1153,7 @@ export class QprService {
                 eightDReportDate: new Date(),
             } : {},
             ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
+                replyReport: moment(body.duedate8d).toDate(),
                 status: ReportStatus.WaitForSupplier,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
@@ -870,7 +1176,107 @@ export class QprService {
             updatedBy: actionBy
         })
 
-        const newValue = await this.findId(id)
+        const newValue = await this.findId(id);
+        if (newValue.eightDStatusChecker2 === ReportStatus.Rejected && check.approve8dAndRejectDocOther == ActiveStatus.NO) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>8D REPORT and DOCUMENT</strong> notification. The status is
+                    <strong style="color: red">"REJECTED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    Please input and submit <strong style="color: blue">8D REPORT and DOCUMENT</strong> by
+                    <strong style="color: blue"> ${moment(newValue.replyReport).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Rejected 8D Report',
+                htmlContent,
+            );
+        } else if (_status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>8D REPORT</strong> notification. The status is
+                    <strong style="color: green">"APPROVED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    To Complete QPR No, Please Submit <strong style="color: blue">DOCUMENT</strong> by
+                    <strong style="color: blue"> ${moment(body.dueDateReqDocumentOther).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Completed 8D Report and rejected Document',
+                htmlContent,
+            );
+        } else if (_status == "approve" && check.approve8dAndRejectDocOther == ActiveStatus.YES) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received, <strong>8D REPORT and DOCUMENT</strong> Status is
+                    <strong style="color: green">"COMPLETED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Completed 8D Report and Document',
+                htmlContent,
+            );
+        }
+
         const objectNewLog = this.logRepository.create({
             qprNo: newValue.qprIssueNo,
             documentType: DocumentType.REPORT_8D,
@@ -881,7 +1287,7 @@ export class QprService {
             performedAt: new Date(),
             action: check.approve8dAndRejectDocOther == ActiveStatus.NO && _status == "approve" ? LogAction.APPROVED : (
                 check.approve8dAndRejectDocOther == ActiveStatus.NO && _status == "reject" ? LogAction.REJECTED : (
-                    check.approve8dAndRejectDocOther == ActiveStatus.YES && _status == "approve" ? LogAction.SUBMITED: (
+                    check.approve8dAndRejectDocOther == ActiveStatus.YES && _status == "approve" ? LogAction.SUBMITED : (
                         check.approve8dAndRejectDocOther == ActiveStatus.YES && _status == "reject" ? LogAction.REJECTED : LogAction.REJECTED
                     )
                 )
@@ -912,7 +1318,7 @@ export class QprService {
 
         if (body.approve == 'reject') {
             _status = 'reject';
-        }  
+        }
 
         if (body.reqDocumentOther) {
             approve8dAndRejectDocOther = ActiveStatus.YES;
@@ -942,6 +1348,7 @@ export class QprService {
             // quickReportStatus: ReportStatus.Pending,
             // quickReportDate: new Date(),
             ..._status == "reject" ? {
+                replyReport: moment(body.duedate8d).toDate(),
                 status: ReportStatus.WaitForSupplier,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
@@ -951,7 +1358,7 @@ export class QprService {
                 eightDStatusChecker3: ReportStatus.Rejected,
                 eightDDateChecker3: new Date(),
             } : {
-                ... approve8dAndRejectDocOther == ActiveStatus.YES ? {
+                ...approve8dAndRejectDocOther == ActiveStatus.YES ? {
                     status: ReportStatus.WaitForSupplier,
                     eightDReportSupplierStatus: ReportStatus.Rejected,
                     eightDReportSupplierDate: new Date(),
@@ -974,6 +1381,108 @@ export class QprService {
         })
 
         const newValue = await this.findId(id)
+
+        if (newValue.eightDStatusChecker3 === ReportStatus.Rejected && check.approve8dAndRejectDocOther == ActiveStatus.NO) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>8D REPORT and DOCUMENT</strong> notification. The status is
+                    <strong style="color: red">"REJECTED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    Please input and submit <strong style="color: blue">8D REPORT and DOCUMENT</strong> by
+                    <strong style="color: blue"> ${moment(newValue.replyReport).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Rejected 8D Report',
+                htmlContent,
+            );
+        } else if (newValue.eightDStatusChecker3 === ReportStatus.Approved && approve8dAndRejectDocOther == ActiveStatus.NO) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received, <strong>8D REPORT and DOCUMENT</strong> Status is
+                    <strong style="color: green">"COMPLETED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Completed 8D Report and Document',
+                htmlContent,
+            );
+
+        } else if (newValue.eightDStatusChecker3 === ReportStatus.Approved && approve8dAndRejectDocOther == ActiveStatus.YES) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Rejected 8D Report</title>
+                </head>
+                <body>
+                    <p>Dear ${newValue?.supplier?.supplierName || ''},</p>
+                    <p>
+                    You have received a <strong>8D REPORT</strong> notification. The status is
+                    <strong style="color: green">"APPROVED"</strong> on QPR No.<strong style="color: lightblue"> ${newValue.qprIssueNo}</strong>.
+                    </p>
+                    <p>
+                    To Complete QPR No, Please Submit <strong style="color: blue">DOCUMENT</strong> by
+                    <strong style="color: blue"> ${moment(body.dueDateReqDocumentOther).format('DD-MM-YYYY HH:mm')}</strong>.
+                    </p>
+                    <p>
+                    Please access Supplier Claim Management (SCM) through the link below:
+                    <br />
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                (newValue?.supplier?.email || []).join(','),
+                'Completed 8D Report and rejected Document',
+                htmlContent,
+            );
+        }
+
         this.myGatewayGateway.sendMessage('reload-status', newValue);
 
         const objectNewLog = this.logRepository.create({
@@ -1719,14 +2228,14 @@ export class QprService {
         try {
             const fileExt = extname(pathFigures).toLowerCase();
             let iconBytes: Buffer;
-    
+
             // 🔹 แปลงภาพเป็น JPG ก่อน (หากไม่ใช่ JPG)
             if (fileExt !== '.jpg' && fileExt !== '.jpeg') {
                 iconBytes = await sharp(pathFigures).jpeg().toBuffer(); // แปลงเป็น JPG
             } else {
                 iconBytes = readFileSync(pathFigures); // ถ้าเป็น JPG อยู่แล้ว อ่านไฟล์ตรงๆ
             }
-    
+
             return iconBytes;
         } catch (error) {
             throw new BadRequestException(`Failed to convert image to JPG: ${error.message}`)
@@ -1824,7 +2333,7 @@ export class QprService {
                     const fontBytes = fs.readFileSync(join(__dirname, '..', '..', '/files-templates/fonts/NotoSansThai-Medium.ttf'));
                     const font = await pdfDoc.embedFont(fontBytes);
 
-                    const fontBytesB = fs.readFileSync(join(__dirname , '..', '..', '/files-templates/fonts/NotoSansThai_SemiCondensed-Bold.ttf'))
+                    const fontBytesB = fs.readFileSync(join(__dirname, '..', '..', '/files-templates/fonts/NotoSansThai_SemiCondensed-Bold.ttf'))
                     const fontB = await pdfDoc.embedFont(fontBytesB);
 
                     // Add watermark to each page
@@ -1917,8 +2426,8 @@ export class QprService {
 
                         const columnHeaders = ["Approved", "Approved", "Checked"];
                         const rowHeights = [20, 15, 30, 15]; // ความสูงของแต่ละแถว
-                        const values = [checker3?.updatedBy || undefined, checker2?.updatedBy || undefined , checker1?.updatedBy || undefined]
-                        const valuesUpdate = [checker3?.updatedAt || undefined, checker2?.updatedAt || undefined , checker1?.updatedAt || undefined]
+                        const values = [checker3?.updatedBy || undefined, checker2?.updatedBy || undefined, checker1?.updatedBy || undefined]
+                        const valuesUpdate = [checker3?.updatedAt || undefined, checker2?.updatedAt || undefined, checker1?.updatedAt || undefined]
 
                         const isNotReject = data.eightDStatusChecker1 !== ReportStatus.Rejected && data.eightDStatusChecker2 !== ReportStatus.Rejected && data.eightDStatusChecker3 !== ReportStatus.Rejected
                         // วาดแต่ละแถวของตาราง
@@ -1951,7 +2460,7 @@ export class QprService {
                                         borderWidth: 1,
                                     });
                                 }
-                                
+
                                 // ใส่ข้อความสำหรับแถวที่ 1 (Supplier Authorized)
                                 if (row === 0 && col === 0) {
                                     page.drawText("JATH, Quality Assurance Dept.", {

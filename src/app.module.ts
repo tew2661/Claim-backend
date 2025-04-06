@@ -10,6 +10,7 @@ import { NotificationModule } from './my-gateway/my-gateway.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { QprModule } from './qpr/qpr.module';
 import { LogsModule } from './logs/logs.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -22,7 +23,8 @@ import { LogsModule } from './logs/logs.module';
     NotificationModule,
     SupplierModule,
     QprModule,
-    LogsModule
+    LogsModule,
+    EmailModule
   ],
   controllers: [AppController],
   providers: [AppService],
