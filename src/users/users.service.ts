@@ -72,7 +72,7 @@ export class UsersService {
     }
 
     findForMiddlewares(id: number) {
-        const data = this.usersRepository.findOne({ where: { id } });
+        const data = this.usersRepository.findOne({ where: { id } , relations: ['supplier'] });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
         }
@@ -160,7 +160,14 @@ export class UsersService {
             throw new BadRequestException(`ไม่สามารถแก้ไขผู้ใช้งานได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
         }
 
-        const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, ...isSupplier ? { supplier: Not(IsNull()) } : { supplier: IsNull() } } });
+        const user = await this.usersRepository.findOne({ 
+            where: { 
+                id,
+                activeRow: ActiveStatus.YES, 
+                ...isSupplier ? { supplier: Not(IsNull()) } : { supplier: IsNull() } 
+            } 
+        });
+
         if (!user) {
             throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
         }
@@ -231,6 +238,41 @@ export class UsersService {
 
         await this.usersRepository.update(user.id, fieldUpdate);
         const newValue = await this.findOneAll(user.id);
+        if (updateUserDto.password) {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                    <meta charset="utf-8" />
+                    <title>Reset Password (SCM)</title>
+                    </head>
+                    <body>
+                    <p>Dear ${newValue.name},</p>
+                    <p>
+                        Please access Supplier Claim Management (SCM) through the link below:
+                    </p>
+                    <p>
+                        <a href="${isSupplier ? (process.env.MAIL_LINK_WEBAPP_SUPPLIER || '') : (process.env.MAIL_LINK_WEBAPP_JTEKT || '')}">${isSupplier ? (process.env.MAIL_LINK_WEBAPP_SUPPLIER || '') : (process.env.MAIL_LINK_WEBAPP_JTEKT || '')}</a>
+                    </p>
+                    <p>
+                        Username: <strong>${newValue.code}</strong><br />
+                        Password: <strong>${'P@ssw0rd'}</strong>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p><strong>ทีมงาน SCM</strong></p>
+                    <p style="font-size: small; color: #888;">
+                        [THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]
+                    </p>
+                    </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                newValue.email,
+                'Reset Password (SCM)',
+                htmlContent,
+            );
+        }
         this.myGatewayGateway.sendMessage('update-user', newValue);
 
         return newValue;
@@ -267,8 +309,100 @@ export class UsersService {
             fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? null : moment().add(3, 'M').toDate()
         }
         await this.usersRepository.update(data.id, fieldUpdate);
+        const newValue = await this.findOneAll(data.id);
+
+        if (updatePasswordDto.newPassword == 'P@ssw0rd') {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                    <meta charset="utf-8" />
+                    <title>Reset Password (SCM)</title>
+                    </head>
+                    <body>
+                    <p>Dear ${newValue.name},</p>
+                    <p>
+                        Please access Supplier Claim Management (SCM) through the link below:
+                    </p>
+                    <p>
+                        <a href="${data.supplier ? (process.env.MAIL_LINK_WEBAPP_SUPPLIER || '') : (process.env.MAIL_LINK_WEBAPP_JTEKT || '')}">${data.supplier ? (process.env.MAIL_LINK_WEBAPP_SUPPLIER || '') : (process.env.MAIL_LINK_WEBAPP_JTEKT || '')}</a>
+                    </p>
+                    <p>
+                        Username: <strong>${newValue.code}</strong><br />
+                        Password: <strong>${'P@ssw0rd'}</strong>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p><strong>ทีมงาน SCM</strong></p>
+                    <p style="font-size: small; color: #888;">
+                        [THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]
+                    </p>
+                    </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                newValue.email,
+                'Reset Password (SCM)',
+                htmlContent,
+            );
+        }
+
+        this.myGatewayGateway.sendMessage('update-user', newValue);
+        return newValue;
+    }
+
+    async fixPasswordSupplier(updatePasswordDto: UpdatePasswordDto, actionBy: UsersEntity): Promise<UsersEntity> {
+        const saltRounds = 10;
+        const fieldUpdate: DeepPartial<UsersEntity> = {}
+
+        if (actionBy.accessMasterManagement !== ActiveStatus.YES) {
+            throw new BadRequestException(`ไม่สามารถเปลี่ยนรหัสผ่านได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
+        }
+
+        const data = await this.findOneForSupplier(updatePasswordDto.id);
+        if (updatePasswordDto.newPassword) {
+            fieldUpdate.password = await bcrypt.hash(updatePasswordDto.newPassword, saltRounds);
+            fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? null : moment().add(3, 'M').toDate()
+        }
+        await this.usersRepository.update(data.id, fieldUpdate);
 
         const newValue = await this.findOneAll(data.id);
+        if (updatePasswordDto.newPassword == 'P@ssw0rd') {
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                    <meta charset="utf-8" />
+                    <title>Reset Password (SCM)</title>
+                    </head>
+                    <body>
+                    <p>Dear ${newValue.name},</p>
+                    <p>
+                        Please access Supplier Claim Management (SCM) through the link below:
+                    </p>
+                    <p>
+                        <a href="${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}">${(process.env.MAIL_LINK_WEBAPP_SUPPLIER || '')}</a>
+                    </p>
+                    <p>
+                        Username: <strong>${newValue.code}</strong><br />
+                        Password: <strong>${'P@ssw0rd'}</strong>
+                    </p>
+                    <p>Thank you and Best regards,</p>
+                    <p><strong>ทีมงาน SCM</strong></p>
+                    <p style="font-size: small; color: #888;">
+                        [THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]
+                    </p>
+                    </body>
+                </html>
+            `;
+
+            this.emailService.sendEmail(
+                newValue.email,
+                'Reset Password (SCM)',
+                htmlContent,
+            );
+        }
+
         this.myGatewayGateway.sendMessage('update-user', newValue);
         return newValue;
     }

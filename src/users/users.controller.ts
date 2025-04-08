@@ -97,7 +97,7 @@ export class UsersController {
         @Body() updatePasswordDto: UpdatePasswordDto,
         @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
-        return this.usersService.fixPassword(updatePasswordDto, actionBy, true);
+        return this.usersService.fixPassword({ ...updatePasswordDto, id: actionBy.id }, actionBy, false);
     }
 
     @Put('reset-password')
@@ -106,7 +106,16 @@ export class UsersController {
         @Body() updatePasswordDto: UpdatePasswordDto,
         @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
-        return this.usersService.fixPassword({ ...updatePasswordDto, id: actionBy.id }, actionBy, false);
+        return this.usersService.fixPassword(updatePasswordDto, actionBy, true);
+    }
+
+    @Put('reset-password-supplier')
+    @UseGuards(JwtAuthGuard)
+    resetPasswordUserSupplier(
+        @Body() updatePasswordDto: UpdatePasswordDto,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    ) {
+        return this.usersService.fixPasswordSupplier(updatePasswordDto, actionBy);
     }
 
     @Put(':id')
