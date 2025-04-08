@@ -50,7 +50,7 @@ export class UsersController {
     }
 
     @Post()
-    // @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: (req, file, cb) => {
@@ -86,17 +86,18 @@ export class UsersController {
     create(
         @Body() createUserDto: CreateUserDto, 
         @UploadedFile() image: Express.Multer.File,
-        // @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
-        return this.usersService.create(createUserDto, undefined, image?.filename);
+        return this.usersService.create(createUserDto, undefined, image?.filename, undefined, actionBy);
     }
 
     @Patch('fixPassword')
     @UseGuards(JwtAuthGuard)
     fixPassword(
-        @Body() updatePasswordDto: UpdatePasswordDto
+        @Body() updatePasswordDto: UpdatePasswordDto,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
-        return this.usersService.fixPassword(updatePasswordDto);
+        return this.usersService.fixPassword(updatePasswordDto, actionBy, true);
     }
 
     @Put('reset-password')
@@ -105,7 +106,7 @@ export class UsersController {
         @Body() updatePasswordDto: UpdatePasswordDto,
         @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
-        return this.usersService.fixPassword({ ...updatePasswordDto, id: actionBy.id });
+        return this.usersService.fixPassword({ ...updatePasswordDto, id: actionBy.id }, actionBy, false);
     }
 
     @Put(':id')

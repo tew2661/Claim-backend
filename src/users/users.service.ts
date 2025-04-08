@@ -83,21 +83,11 @@ export class UsersService {
         return this.usersRepository.findOne({ where: { email, activeRow: ActiveStatus.YES, supplier: IsNull() } });
     }
 
-    async create(createUserDto: CreateUserDto, supplier?: SupplierEntity, imageFilename?: string, isSupplier?: boolean): Promise<UsersEntity> {
-        // const user = await this.usersRepository.findOne({ 
-        //     where: { 
-        //         email: createUserDto.email, 
-        //         activeRow: ActiveStatus.YES, 
-        //         ...isSupplier ? { 
-        //             supplier: Not(IsNull()) 
-        //         } : { 
-        //             supplier: IsNull() 
-        //         } 
-        //     } 
-        // });
-        // if (user) {
-        //     throw new ConflictException('Email นี้ถูกใช้งานแล้ว')
-        // }
+    async create(createUserDto: CreateUserDto, supplier?: SupplierEntity, imageFilename?: string, isSupplier?: boolean, actionBy?: UsersEntity): Promise<UsersEntity> {
+
+        if (actionBy.accessMasterManagement !== ActiveStatus.YES) {
+            throw new BadRequestException(`ไม่สามารถสร้างผู้ใช้งานได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
+        }
 
         const user2 = await this.usersRepository.findOne({
             where: {
@@ -166,6 +156,10 @@ export class UsersService {
     }
 
     async update(id: number, updateUserDto: UpdateUserDto, actionBy: UsersEntity, imageFilename?: string, isSupplier?: boolean): Promise<UsersEntity> {
+        if (actionBy.accessMasterManagement !== ActiveStatus.YES) {
+            throw new BadRequestException(`ไม่สามารถแก้ไขผู้ใช้งานได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
+        }
+
         const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, ...isSupplier ? { supplier: Not(IsNull()) } : { supplier: IsNull() } } });
         if (!user) {
             throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
@@ -215,8 +209,8 @@ export class UsersService {
         }
 
         if (updateUserDto.password) {
-            fieldUpdate.expiresPassword = updateUserDto.password == 'P@ssw0rd' ? undefined : moment().add(3, 'M').toDate(),
-                fieldUpdate.password = await bcrypt.hash(updateUserDto.password, saltRounds);
+            fieldUpdate.expiresPassword = updateUserDto.password == 'P@ssw0rd' ? null : moment().add(3, 'M').toDate(),
+            fieldUpdate.password = await bcrypt.hash(updateUserDto.password, saltRounds);
         }
 
         if (imageFilename) {
@@ -243,6 +237,11 @@ export class UsersService {
     }
 
     async remove(id: number, actionBy: UsersEntity): Promise<void> {
+
+        if (actionBy.accessMasterManagement !== ActiveStatus.YES) {
+            throw new BadRequestException(`ไม่สามารถแก้ไขผู้ใช้งานได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
+        }
+
         const user = await this.usersRepository.findOne({ where: { id, activeRow: ActiveStatus.YES, supplier: IsNull() } });
         if (!user) {
             throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
@@ -254,14 +253,18 @@ export class UsersService {
         });
     }
 
-    async fixPassword(updatePasswordDto: UpdatePasswordDto): Promise<UsersEntity> {
+    async fixPassword(updatePasswordDto: UpdatePasswordDto, actionBy: UsersEntity , isAccessMasterManagement: boolean): Promise<UsersEntity> {
         const saltRounds = 10;
         const fieldUpdate: DeepPartial<UsersEntity> = {}
+
+        if (actionBy.accessMasterManagement !== ActiveStatus.YES && isAccessMasterManagement) {
+            throw new BadRequestException(`ไม่สามารถเปลี่ยนรหัสผ่านได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
+        }
 
         const data = await this.findOneAll(updatePasswordDto.id);
         if (updatePasswordDto.newPassword) {
             fieldUpdate.password = await bcrypt.hash(updatePasswordDto.newPassword, saltRounds);
-            fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? undefined : moment().add(3, 'M').toDate()
+            fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? null : moment().add(3, 'M').toDate()
         }
         await this.usersRepository.update(data.id, fieldUpdate);
 

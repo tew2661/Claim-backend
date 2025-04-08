@@ -29,13 +29,14 @@ export class LogsService {
 //     return this.logRepository.save(log);
 //   }
 
-  async findAll(query: PaginateLogDto) {
+  async findAll(query: PaginateLogDto, actionBy: UsersEntity) {
     const where: FindOptionsWhere<LogEntity> | FindOptionsWhere<LogEntity>[] = [{
         ...query.qprNo ? { qprNo: Like(`%${query.qprNo}%`) } : {},
         ...query.user ? { performedBy: { id: query.user } } : {},
         ...query.documentType ? { documentType: query.documentType} : {},
         ...query.action ? { action: query.action } : {},
-        ...query.roleType ? { roleType: query.roleType } : {}
+        ...query.roleType ? { roleType: query.roleType } : {},
+        ...actionBy.role == 'Supplier' ? { roleType: 'Supplier' } : {},
     }];
 
     const [data, total] = await this.logRepository.findAndCount({
