@@ -37,6 +37,7 @@ export class LogsService {
         ...query.action ? { action: query.action } : {},
         ...query.roleType ? { roleType: query.roleType } : {},
         ...actionBy.role == 'Supplier' ? { roleType: 'Supplier' } : {},
+        ...actionBy.role == 'Supplier' ? { performedBy:  { id: actionBy.id } } : {},
     }];
 
     const [data, total] = await this.logRepository.findAndCount({
