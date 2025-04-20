@@ -38,9 +38,7 @@ export class QprService {
         private readonly userRepository: Repository<UsersEntity>,
         private readonly myGatewayGateway: MyGatewayGateway,
         private readonly emailService: EmailService
-    ) {
-        this.handleMidnightTask();
-    }
+    ) {}
     async create(createQprDto: CreateQprDto, actionBy: UsersEntity): Promise<QprEntity> {
         const haveNo = await this.qprRepository.findOne({ where: { qprIssueNo: createQprDto.qprIssueNo, activeRow: ActiveStatus.YES } });
         if (haveNo) {
