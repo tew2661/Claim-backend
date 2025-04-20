@@ -3,7 +3,7 @@ import { ActiveStatus } from './../users/entities/users.entity';
 import { BadGatewayException, BadRequestException, Injectable, NotAcceptableException, NotFoundException } from '@nestjs/common';
 import { CreateQprDto } from './dto/create-qpr.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, IsNull, LessThan, Like, MoreThan, Not, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, In, IsNull, LessThan, Like, MoreThan, Not, Repository } from 'typeorm';
 import { QprEntity, ReportStatus } from './entities/qpr.entity';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { configPath } from 'src/path-files-config';
@@ -23,6 +23,7 @@ import * as sharp from 'sharp';
 import * as fs from 'fs';
 import { DocumentType, LogAction, LogEntity, RoleType } from 'src/logs/entities/log.entity';
 import { EmailService } from 'src/email/email.service';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class QprService {
@@ -33,17 +34,21 @@ export class QprService {
         private readonly supplierRepository: Repository<SupplierEntity>,
         @InjectRepository(LogEntity)
         private readonly logRepository: Repository<LogEntity>,
+        @InjectRepository(UsersEntity)
+        private readonly userRepository: Repository<UsersEntity>,
         private readonly myGatewayGateway: MyGatewayGateway,
         private readonly emailService: EmailService
-    ) { }
+    ) {
+        this.handleMidnightTask();
+    }
     async create(createQprDto: CreateQprDto, actionBy: UsersEntity): Promise<QprEntity> {
         const haveNo = await this.qprRepository.findOne({ where: { qprIssueNo: createQprDto.qprIssueNo, activeRow: ActiveStatus.YES } });
         if (haveNo) {
             throw new BadGatewayException(`เลข QPR Issue No : ${createQprDto.qprIssueNo} มีอยู่แล้ว`);
         }
 
-        const haveSupplier = await this.supplierRepository.findOne({ 
-            where: { supplierCode: createQprDto.supplierCode, activeRow: ActiveStatus.YES } 
+        const haveSupplier = await this.supplierRepository.findOne({
+            where: { supplierCode: createQprDto.supplierCode, activeRow: ActiveStatus.YES }
         })
         if (!haveSupplier) {
             throw new BadGatewayException(`ไม่พบ SupplierCode : ${createQprDto.supplierCode} , หรือถูกปิดใช้งาน user นี้ `);
@@ -119,7 +124,7 @@ export class QprService {
             htmlContent,
         );
 
-        
+
         const objectNewLog = this.logRepository.create({
             qprNo: newValue.qprIssueNo,
             idQpr: newValue.id,
@@ -175,7 +180,7 @@ export class QprService {
             queryBuilder.andWhere("qpr.delayDocument = 'Quick Report'");
         } else if (query.page === "8d-report") {
             queryBuilder.andWhere("qpr.delayDocument = '8D Report'");
-        } 
+        }
 
         // กรอง status ตามประเภทของ page
         if (query.status && (query.page === "action-list" || query.page === "qpr-report" || query.page === "8d-report")) {
@@ -299,27 +304,42 @@ export class QprService {
     }
 
 
-    async findAllDelay(query: GetQprDto) {
+    /**
+     * ค้นหา QPR ที่ยังไม่ได้รับการตอบรับจาก Supplier
+     * @param query ข้อมูลสำหรับกรอง QPR
+     * @returns คืนค่า QPR ที่ยังไม่ได้รับการตอบรับจาก Supplier
+     */
+    async findAllDelay(query: GetQprDto, isTake: boolean = false) {
         const where: FindOptionsWhere<QprEntity> | FindOptionsWhere<QprEntity>[] = [{
-            ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
-            ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
+            ...(query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {}),
+            ...(query.supplier ? { supplier: { supplierCode: query.supplier } } : {}),
             delayDocument: 'Quick Report',
             replyQuickAction: LessThan(new Date()),
             quickReportSupplierStatus: Not(ReportStatus.Approved),
             activeRow: ActiveStatus.YES,
         }, {
-            ...query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {},
-            ...query.supplier ? { supplier: { supplierCode: query.supplier } } : {},
+            ...(query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {}),
+            ...(query.supplier ? { supplier: { supplierCode: query.supplier } } : {}),
             delayDocument: '8D Report',
             replyReport: LessThan(new Date()),
             eightDReportSupplierStatus: Not(ReportStatus.Approved),
+            activeRow: ActiveStatus.YES,
+        }, {
+            ...(query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {}),
+            ...(query.supplier ? { supplier: { supplierCode: query.supplier } } : {}),
+            delayDocument: '8D Report',
+            dueDateReqDocumentOther: LessThan(new Date()),
+            // eightDReportSupplierStatus: In([ReportStatus.Pending, ReportStatus.Rejected, ReportStatus.Save]),
+            eightDReportSupplierStatus: Not(In([ReportStatus.Approved, ReportStatus.Completed])),
+            approve8dAndRejectDocOther: ActiveStatus.YES,
+            eightDReportStatus: ReportStatus.Approved,
             activeRow: ActiveStatus.YES,
         }]
 
         const [data, total] = await this.qprRepository.findAndCount({
             relations: ['supplier'],
-            skip: query.offset,
-            take: query.limit,
+            ...isTake ? { skip: query.offset } : {},
+            ...isTake ? { take: query.limit } : {},
             where,
             order: {
                 createdAt: 'DESC'
@@ -1025,6 +1045,7 @@ export class QprService {
             } : {},
             ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
                 replyReport: moment(body.duedate8d).toDate(),
+                dueDateReqDocumentOther: body.dueDateReqDocumentOther ? moment(body.dueDateReqDocumentOther).toDate() : null,
                 status: ReportStatus.WaitForSupplier,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
@@ -1228,6 +1249,7 @@ export class QprService {
             } : {},
             ..._status == "reject" && check.approve8dAndRejectDocOther == ActiveStatus.YES ? {
                 replyReport: moment(body.duedate8d).toDate(),
+                dueDateReqDocumentOther: body.dueDateReqDocumentOther ? moment(body.dueDateReqDocumentOther).toDate() : null,
                 status: ReportStatus.WaitForSupplier,
                 eightDReportSupplierStatus: ReportStatus.Rejected,
                 eightDReportSupplierDate: new Date(),
@@ -1434,12 +1456,13 @@ export class QprService {
             } : {
                 ...approve8dAndRejectDocOther == ActiveStatus.YES ? {
                     status: ReportStatus.WaitForSupplier,
-                    eightDReportSupplierStatus: ReportStatus.Rejected,
                     eightDReportSupplierDate: new Date(),
                     delayDocument: "8D Report",
+                    eightDReportSupplierStatus: ReportStatus.Rejected,
                     eightDReportStatus: ReportStatus.Approved,
                     eightDReportDate: new Date(),
                     eightDStatusChecker3: ReportStatus.Approved,
+                    dueDateReqDocumentOther: body.dueDateReqDocumentOther ? new Date(body.dueDateReqDocumentOther) : null,
                     eightDDateChecker3: new Date(),
                 } : {
                     delayDocument: "8D Report",
@@ -2677,4 +2700,127 @@ export class QprService {
         await workbook.xlsx.write(response);
         response.end();
     }
+
+    @Cron('1 0 * * *') // ทุกวันเวลา 00:01
+    async handleMidnightTask() {
+        const data = await this.findAllDelay({ offset: 0, limit: 0 });
+        console.log('⏰ Midnight job started', data.data);
+        if (data.total > 0) {
+            console.log('total', data.total);
+            const users = await this.userRepository.find({
+                select: ['email', 'role'],
+                where: {
+                    supplier: IsNull(),
+                    activeRow: ActiveStatus.YES,
+                    role: In(['Manager', 'GM / DGM', 'Plant Manager'])
+                }
+            })
+            for (let x in data.data) {
+                // มากกว่า 1-2 วัน ให้ส่งหา Manager
+                // มากกว่า 3-4 วัน ให้ส่งหา GM/DGM
+                // มากกว่า 5 วัน ขึ้นไป ให้ส่งหา Plant Manager
+                const overdueDays8DReport = moment().diff(moment(data.data[x].replyReport), 'days');
+                const overdueDocumentOther = moment().diff(moment(data.data[x].dueDateReqDocumentOther), 'days');
+                const overdueDaysQuickReport = moment().diff(moment(data.data[x].replyQuickAction), 'days');
+                if (data.data[x].delayDocument == '8D Report' && (overdueDays8DReport > 0 || overdueDocumentOther > 0)) {
+                    const isDocOther = overdueDays8DReport > 0 ? false : true;
+                    let emailList = users.filter((x) => x.role == (overdueDocumentOther > 5 ? 'Plant Manager' : overdueDocumentOther > 3 ? 'GM / DGM' : 'Manager')).map((x) => x.email);
+                    emailList = users.filter((x) => x.role == (overdueDays8DReport > 5 ? 'Plant Manager' : overdueDays8DReport > 3 ? 'GM / DGM' : 'Manager')).map((x) => x.email);
+                    const htmlContent = `
+                                <!DOCTYPE html>
+                                <html>
+                                    <head>
+                                    <meta charset="utf-8" />
+                                        <title>${isDocOther ? 'Overdue Document Other' : 'Overdue 8D Report'}</title>
+                                    </head>
+                                    <body>
+                                        <p>Dear ${data.data[x]?.supplier?.supplierName || ''},</p>
+                                        <p>
+                                            You have received Alert E-Mail, 
+                                            <strong>${isDocOther ? 'DOCUMENT OTHER' : '8D REPORT'}</strong> Status is 
+                                            <span style="color: red;"><strong>"OVERDUE ${overdueDays8DReport} Day${overdueDays8DReport > 1 ? 's' : ''}"</strong></span>
+                                            on QPR No.
+                                            <span style="color: blue;"><strong>${data.data[x]?.qprIssueNo || 'XXXXXXXXX'}</strong></span>
+                                        </p>
+        
+                                        <p>
+                                            Your ${isDocOther ? 'DOCUMENT OTHER' : '8D REPORT'} Due Date is on 
+                                            <span style="color: red;"><strong>${moment(data.data[x]?.replyReport).format('DD-MM-YYYY')}</strong></span>
+                                        </p>
+        
+                                        <p>
+                                            Please input and Submit 
+                                            <span style="color: red;"><strong>AS SOON AS POSSIBLE</strong></span>
+                                        </p>
+                                        <p>
+                                            Please access Supplier Claim Management (SCM) through the link below:
+                                            <br />
+                                            <a href="${process.env.MAIL_LINK_WEBAPP_SUPPLIER || ''}">
+                                            ${process.env.MAIL_LINK_WEBAPP_SUPPLIER || ''}
+                                            </a>
+                                        </p>
+                                        <p>Thank you and Best regards,</p>
+                                        <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                                    </body>
+                                </html>
+                            `;
+
+                    this.emailService.sendEmail(
+                        [...emailList, ...(data.data[x]?.supplier?.email || [])].join(','),
+                        'Overdue 8D Report',
+                        htmlContent,
+                    );
+                }
+                // มากกว่า 1-2 วัน ให้ส่งหา Manager
+                // มากกว่า 3-4 วัน ให้ส่งหา GM/DGM
+                // มากกว่า 5 วัน ขึ้นไป ให้ส่งหา Plant Manager
+                else if (data.data[x].delayDocument == 'Quick Report' && overdueDaysQuickReport > 0) {
+                    const emailList = users.filter((x) => x.role == (overdueDaysQuickReport > 5 ? 'Plant Manager' : overdueDaysQuickReport > 3 ? 'GM / DGM' : 'Manager')).map((x) => x.email);
+                    const htmlContent = `
+                                <!DOCTYPE html>
+                                <html>
+                                    <head>
+                                    <meta charset="utf-8" />
+                                    <title>Overdue Quick Action Report</title>
+                                    </head>
+                                    <body>
+                                    <p>Dear ${data.data[x]?.supplier?.supplierName || ''},</p>
+                                    <p>
+                                        You have received Alert E-Mail, 
+                                        <strong>QUICK ACTION REPORT</strong> Status is 
+                                        <strong style="color: red;">"OVERDUE ${overdueDaysQuickReport} Day${overdueDaysQuickReport > 1 ? 's' : ''}"</strong> 
+                                        on QPR No.<strong style="color: lightblue;"> ${data.data[x]?.qprIssueNo || ''}</strong>.
+                                    </p>
+                                    <p>
+                                        Your QUICK ACTION REPORT Due Date is on 
+                                        <strong style="color: blue;">${moment(data.data[x]?.replyQuickAction).format('DD-MM-YYYY HH:mm')}</strong>
+                                    </p>
+                                    <p>
+                                        Please input and Submit <strong>AS SOON AS POSSIBLE</strong>
+                                    </p>
+                                    <p>
+                                        Please access Supplier Claim Management (SCM) through the link below:
+                                        <br />
+                                        <a href="${process.env.MAIL_LINK_WEBAPP_SUPPLIER || ''}">
+                                        ${process.env.MAIL_LINK_WEBAPP_SUPPLIER || ''}
+                                        </a>
+                                    </p>
+                                    <p>Thank you and Best regards,</p>
+                                    <p>[THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL]</p>
+                                    </body>
+                                </html>
+                            `;
+
+                    this.emailService.sendEmail(
+                        [...emailList, ...(data.data[x]?.supplier?.email || [])].join(','),
+                        'Overdue Quick Action Report',
+                        htmlContent,
+                    );
+                }
+
+            }
+        }
+    }
 }
+
+

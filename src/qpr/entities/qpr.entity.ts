@@ -210,6 +210,9 @@ export class QprEntity {
     @Column({ type: 'nvarchar', name: 'approve_eight_d_and_reject_doc_other', length: 1, nullable: false, default: ActiveStatus.NO })
     approve8dAndRejectDocOther: ActiveStatus;
 
+    @Column({ type: 'datetime2', nullable: true, name: 'due_date_req_doc_other' })
+    dueDateReqDocumentOther: Date | null;
+
     @Column({ type: 'simple-json' , nullable: true })
     objectQPRSupplier: SaveObjectQPR[];
 

@@ -32,6 +32,7 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.8",
     "@nestjs/platform-socket.io": "^10.4.15",
+    "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^8.0.7",
     "@nestjs/typeorm": "^10.0.2",
     "@nestjs/websockets": "^10.4.15",

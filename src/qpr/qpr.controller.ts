@@ -91,7 +91,7 @@ export class QprController {
     async findAllDelay(@Query() Query : GetQprDto) {
         return {
             statusCode: 200,
-            ...await this.qprService.findAllDelay(Query)
+            ...await this.qprService.findAllDelay(Query, true)
         }
     }
 
