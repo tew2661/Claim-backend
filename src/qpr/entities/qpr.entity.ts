@@ -9,6 +9,7 @@ import {
     DeleteDateColumn,
     ManyToOne,
     UpdateDateColumn,
+    Index
 } from 'typeorm';
 import { Object8DReportDto, SaveObjectQPR } from '../dto/action-supplier.dto';
 
@@ -32,12 +33,15 @@ export class QprEntity {
     @PrimaryGeneratedColumn()
     id: number;
 
+    @Index()
     @Column({ name: 'qpr_issue_no' })
     qprIssueNo: string;
 
+    @Index()
     @Column({ type: 'datetime2', name: 'occurrence_date' })
     occurrenceDate: Date;
 
+    @Index()
     @Column({ type: 'datetime2', name: 'date_reported' })
     dateReported: Date;
 
@@ -47,6 +51,7 @@ export class QprEntity {
     @Column({ type: 'datetime2', name: 'reply_report' })
     replyReport: Date;
 
+    @Index()
     @ManyToOne(() => SupplierEntity, supplier => supplier.id, { nullable: true, onDelete: 'NO ACTION' })
     supplier: SupplierEntity;
 
@@ -65,7 +70,6 @@ export class QprEntity {
     @Column()
     who: string;
 
-    // เปลี่ยนจาก type: 'json' เป็น 'simple-json'
     @Column({ type: 'simple-json', name: 'where_found' })
     whereFound: {
         receiving: boolean;
@@ -123,7 +127,6 @@ export class QprEntity {
     @Column({ nullable: true })
     issue: string;
 
-    // ในส่วน figures เราจะเก็บเฉพาะ file path ของรูปแต่ละรูปเป็น string
     @Column({ type: 'simple-json' })
     figures: {
         img1: string | null;
@@ -135,75 +138,77 @@ export class QprEntity {
     @Column({ type: 'nvarchar', name: 'delay_document', default: "Quick Report" })
     delayDocument: "8D Report" | "Quick Report"
 
+    @Index()
     @Column({ name: 'quick_report_status', default: ReportStatus.WaitForSupplier })
-    quickReportStatus: ReportStatus; // เช่น Approved หรือ Pending
+    quickReportStatus: ReportStatus;
 
     @Column({ name: 'quick_report_status_checker_1', nullable: true })
-    quickReportStatusChecker1: ReportStatus; // เช่น Approved หรือ Pending
+    quickReportStatusChecker1: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'quick_report_date_checker_1', nullable: true })
-    quickReportDateChecker1: Date | null; // วันที่ของ Quick Report
+    quickReportDateChecker1: Date | null;
 
     @Column({ name: 'quick_report_status_checker_2',  nullable: true })
-    quickReportStatusChecker2: ReportStatus; // เช่น Approved หรือ Pending
+    quickReportStatusChecker2: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'quick_report_date_checker_2', nullable: true })
-    quickReportDateChecker2: Date | null; // วันที่ของ Quick Report
+    quickReportDateChecker2: Date | null;
 
     @Column({ name: 'eight_d_report_approver', nullable: true })
     eightDReportApprover: string;
 
     @Column({ name: 'quick_report_status_checker_3', nullable: true })
-    quickReportStatusChecker3: ReportStatus; // เช่น Approved หรือ Pending
+    quickReportStatusChecker3: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'quick_report_date_checker_3', nullable: true })
-    quickReportDateChecker3: Date | null; // วันที่ของ Quick Report
-
-    // 8d report 
+    quickReportDateChecker3: Date | null;
 
     @Column({ name: 'eight_d_status_checker_1', nullable: true })
-    eightDStatusChecker1: ReportStatus; // เช่น Approved หรือ Pending
+    eightDStatusChecker1: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'eight_d_date_checker_1', nullable: true })
-    eightDDateChecker1: Date | null; // วันที่ของ Quick Report
+    eightDDateChecker1: Date | null;
 
     @Column({ name: 'eight_d_status_checker_2',  nullable: true })
-    eightDStatusChecker2: ReportStatus; // เช่น Approved หรือ Pending
+    eightDStatusChecker2: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'eight_d_date_checker_2', nullable: true })
-    eightDDateChecker2: Date | null; // วันที่ของ Quick Report
+    eightDDateChecker2: Date | null;
 
     @Column({ name: 'eight_d_status_checker_3', nullable: true })
-    eightDStatusChecker3: ReportStatus; // เช่น Approved หรือ Pending
+    eightDStatusChecker3: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'eight_d_date_checker_3', nullable: true })
-    eightDDateChecker3: Date | null; // วันที่ของ Quick Report
+    eightDDateChecker3: Date | null;
 
-
+    @Index()
     @Column({ name: 'quick_report_status_for_supplier', default: ReportStatus.Pending })
-    quickReportSupplierStatus: ReportStatus; // เช่น Approved หรือ Pending
+    quickReportSupplierStatus: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'quick_report_date', nullable: true })
-    quickReportDate: Date | null; // วันที่ของ Quick Report
+    quickReportDate: Date | null;
 
     @Column({ type: 'datetime2', name: 'quick_report_date_for_supplier', nullable: true })
-    quickReportSupplierDate: Date | null; // วันที่ของ Quick Report
+    quickReportSupplierDate: Date | null;
 
+    @Index()
     @Column({ name: 'eight_d_report_status', nullable: true })
-    eightDReportStatus?: ReportStatus; // เช่น Approved หรือ Pending
+    eightDReportStatus?: ReportStatus;
 
+    @Index()
     @Column({ name: 'eight_d_report_status_for_supplier', nullable: true })
-    eightDReportSupplierStatus?: ReportStatus; // เช่น Approved หรือ Pending
+    eightDReportSupplierStatus?: ReportStatus;
 
     @Column({ type: 'datetime2', name: 'eight_d_report_date', nullable: true })
-    eightDReportDate: Date | null; // วันที่ของ 8D Report
+    eightDReportDate: Date | null;
 
     @Column({ type: 'datetime2', name: 'eight_d_report_date_for_supplier', nullable: true })
-    eightDReportSupplierDate: Date | null; // วันที่ของ 8D Report
+    eightDReportSupplierDate: Date | null;
 
     @Column({ name: 'status', default: ReportStatus.WaitForSupplier })
-    status: ReportStatus; // เช่น Completed, In Progress, หรืออื่น ๆ
+    status: ReportStatus;
 
+    @Index()
     @Column({ type: 'nvarchar', name: '_activeRow', length: 1, nullable: false, default: ActiveStatus.YES })
     activeRow: ActiveStatus;
 
@@ -219,17 +224,18 @@ export class QprEntity {
     @Column({ type: 'simple-json' , nullable: true })
     object8DReportDto: Object8DReportDto[];
 
+    @Index()
     @CreateDateColumn({ type: "datetime", name: "created_at" })
-    createdAt: Date; // วันที่สร้างข้อมูล
+    createdAt: Date;
 
     @UpdateDateColumn({ type: "datetime", name: "updated_at" })
-    updatedAt: Date; // วันที่แก้ไขข้อมูลล่าสุด
+    updatedAt: Date;
 
     @DeleteDateColumn({ type: "datetime", name: "deleted_at", nullable: true })
-    deletedAt?: Date; // วันที่ลบข้อมูล (nullable สำหรับ soft delete)
+    deletedAt?: Date;
 
     @ManyToOne(() => UsersEntity, user => user.id, { nullable: true, onDelete: 'NO ACTION' })
-    createdBy: UsersEntity
+    createdBy: UsersEntity;
 
     @ManyToOne(() => UsersEntity, user => user.id, { nullable: true, onDelete: 'NO ACTION' })
     updatedBy: UsersEntity;

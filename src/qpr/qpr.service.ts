@@ -198,6 +198,10 @@ export class QprService {
                 queryBuilder.andWhere("(qpr.delayDocument = '8D Report' AND (qpr.eightDReportSupplierStatus IS NULL OR qpr.eightDReportSupplierStatus = :waitForSupplier8d OR qpr.eightDReportSupplierStatus = :saveForSupplierQuick))", { waitForSupplier8d: ReportStatus.Pending, saveForSupplierQuick: ReportStatus.Save });
             } else if (query.status === "rejected-8d-report") {
                 queryBuilder.andWhere("qpr.delayDocument = '8D Report' AND qpr.eightDReportSupplierStatus = :rejected8d AND qpr.eightDReportStatus = :rejected8d", { rejected8d: ReportStatus.Rejected });
+            } else if (query.status === "inprocess") {
+                queryBuilder.andWhere("(qpr.eightDReportStatus <> :completed OR qpr.eightDReportStatus IS NULL)", { completed: ReportStatus.Completed });
+            } else if (query.status === "completed") {
+                queryBuilder.andWhere("(qpr.eightDReportStatus = :completed)", { completed: ReportStatus.Completed });
             }
         } else if (query.status && query.page === "checker1") {
             if (query.reportType === "quick-report" && query.status === "approved") {
@@ -207,13 +211,13 @@ export class QprService {
             } else if (query.reportType === "quick-report" && query.status === "rejected") {
                 queryBuilder.andWhere("qpr.quickReportStatusChecker1 = :rejectedQuick", { rejectedQuick: ReportStatus.Rejected });
             } else if (query.reportType === "8d-report" && query.status === "approved") {
-                queryBuilder.andWhere("qpr.eightDStatusChecker1 = :approved8d", { approved8d: ReportStatus.Approved });
+                queryBuilder.andWhere("(qpr.eightDStatusChecker1 = :approved8d OR qpr.eightDStatusChecker1 = :completed8d)", { approved8d: ReportStatus.Approved, completed8d: ReportStatus.Completed });
             } else if (query.reportType === "8d-report" && query.status === "pending") {
                 queryBuilder.andWhere("(qpr.eightDStatusChecker1 IS NULL OR qpr.eightDStatusChecker1 = :waitForSupplier8d)", { waitForSupplier8d: ReportStatus.Pending });
             } else if (query.reportType === "8d-report" && query.status === "rejected") {
                 queryBuilder.andWhere("qpr.eightDStatusChecker1 = :rejected8d", { rejected8d: ReportStatus.Rejected });
             } else if (query.status === "approved") {
-                queryBuilder.andWhere("(qpr.delayDocument = 'Quick Report' AND qpr.quickReportStatusChecker1 = :approvedQuick) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker1 = 'Approved' AND qpr.eightDStatusChecker1 = :approved8d)", { approvedQuick: ReportStatus.Approved, approved8d: ReportStatus.Approved });
+                queryBuilder.andWhere("(qpr.delayDocument = 'Quick Report' AND qpr.quickReportStatusChecker1 = :approvedQuick) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker1 = 'Approved' AND (qpr.eightDStatusChecker1 = :approved8d OR qpr.eightDStatusChecker1 = :completed8d))", { approvedQuick: ReportStatus.Approved, approved8d: ReportStatus.Approved, completed8d: ReportStatus.Completed });
             } else if (query.status === "pending") {
                 queryBuilder.andWhere("((qpr.delayDocument = 'Quick Report' AND (qpr.quickReportStatusChecker1 IS NULL OR qpr.quickReportStatusChecker1 = :waitForSupplierQuick)) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker1 = 'Approved' AND (qpr.eightDStatusChecker1 IS NULL OR qpr.eightDStatusChecker1 = :waitForSupplier8d)))", { waitForSupplierQuick: ReportStatus.Pending, waitForSupplier8d: ReportStatus.Pending });
             } else if (query.status === "rejected") {
@@ -227,13 +231,13 @@ export class QprService {
             } else if (query.reportType === "quick-report" && query.status === "rejected") {
                 queryBuilder.andWhere("qpr.quickReportStatusChecker2 = :rejectedQuick", { rejectedQuick: ReportStatus.Rejected });
             } else if (query.reportType === "8d-report" && query.status === "approved") {
-                queryBuilder.andWhere("qpr.eightDStatusChecker2 = :approved8d", { approved8d: ReportStatus.Approved });
+                queryBuilder.andWhere("(qpr.eightDStatusChecker2 = :approved8d OR qpr.eightDStatusChecker2 = :completed8d)", { approved8d: ReportStatus.Approved, completed8d: ReportStatus.Completed });
             } else if (query.reportType === "8d-report" && query.status === "pending") {
                 queryBuilder.andWhere("(qpr.eightDStatusChecker2 IS NULL OR qpr.eightDStatusChecker2 = :waitForSupplier8d)", { waitForSupplier8d: ReportStatus.Pending });
             } else if (query.reportType === "8d-report" && query.status === "rejected") {
                 queryBuilder.andWhere("qpr.eightDStatusChecker2 = :rejected8d", { rejected8d: ReportStatus.Rejected });
             } else if (query.status === "approved") {
-                queryBuilder.andWhere("(qpr.delayDocument = 'Quick Report' AND qpr.quickReportStatusChecker2 = :approvedQuick) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker2 = 'Approved' AND qpr.eightDStatusChecker2 = :approved8d)", { approvedQuick: ReportStatus.Approved, approved8d: ReportStatus.Approved });
+                queryBuilder.andWhere("(qpr.delayDocument = 'Quick Report' AND qpr.quickReportStatusChecker2 = :approvedQuick) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker2 = 'Approved' AND (qpr.eightDStatusChecker2 = :approved8d OR qpr.eightDStatusChecker2 = :completed8d))", { approvedQuick: ReportStatus.Approved, approved8d: ReportStatus.Approved, completed8d: ReportStatus.Completed });
             } else if (query.status === "pending") {
                 queryBuilder.andWhere("((qpr.delayDocument = 'Quick Report' AND (qpr.quickReportStatusChecker2 IS NULL OR qpr.quickReportStatusChecker2 = :waitForSupplierQuick)) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker2 = 'Approved' AND (qpr.eightDStatusChecker2 IS NULL OR qpr.eightDStatusChecker2 = :waitForSupplier8d)))", { waitForSupplierQuick: ReportStatus.Pending, waitForSupplier8d: ReportStatus.Pending });
             } else if (query.status === "rejected") {
@@ -247,19 +251,34 @@ export class QprService {
             } else if (query.reportType === "quick-report" && query.status === "rejected") {
                 queryBuilder.andWhere("qpr.quickReportStatusChecker3 = :rejectedQuick", { rejectedQuick: ReportStatus.Rejected });
             } else if (query.reportType === "8d-report" && query.status === "approved") {
-                queryBuilder.andWhere("qpr.eightDStatusChecker3 = :approved8d", { approved8d: ReportStatus.Approved });
+                queryBuilder.andWhere("(qpr.eightDStatusChecker3 = :approved8d OR qpr.eightDStatusChecker3 = :completed8d)", { approved8d: ReportStatus.Approved, completed8d: ReportStatus.Completed });
             } else if (query.reportType === "8d-report" && query.status === "pending") {
                 queryBuilder.andWhere("(qpr.eightDStatusChecker3 IS NULL OR qpr.eightDStatusChecker3 = :waitForSupplier8d)", { waitForSupplier8d: ReportStatus.Pending });
             } else if (query.reportType === "8d-report" && query.status === "rejected") {
                 queryBuilder.andWhere("qpr.eightDStatusChecker3 = :rejected8d", { rejected8d: ReportStatus.Rejected });
             } else if (query.status === "approved") {
-                queryBuilder.andWhere("(qpr.delayDocument = 'Quick Report' AND qpr.quickReportStatusChecker3 = :approvedQuick) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker3 = 'Approved' AND qpr.eightDStatusChecker3 = :approved8d)", { approvedQuick: ReportStatus.Approved, approved8d: ReportStatus.Approved });
+                queryBuilder.andWhere("(qpr.delayDocument = 'Quick Report' AND qpr.quickReportStatusChecker3 = :approvedQuick) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker3 = 'Approved' AND (qpr.eightDStatusChecker3 = :approved8d OR qpr.eightDStatusChecker3 = :completed8d))", { approvedQuick: ReportStatus.Approved, approved8d: ReportStatus.Approved, completed8d: ReportStatus.Completed });
             } else if (query.status === "pending") {
                 queryBuilder.andWhere("((qpr.delayDocument = 'Quick Report' AND (qpr.quickReportStatusChecker3 IS NULL OR qpr.quickReportStatusChecker3 = :waitForSupplierQuick)) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker3 = 'Approved' AND (qpr.eightDStatusChecker3 IS NULL OR qpr.eightDStatusChecker3 = :waitForSupplier8d)))", { waitForSupplierQuick: ReportStatus.Pending, waitForSupplier8d: ReportStatus.Pending });
             } else if (query.status === "rejected") {
                 queryBuilder.andWhere("(qpr.delayDocument = 'Quick Report' AND qpr.quickReportStatusChecker3 = :rejectedQuick) OR (qpr.delayDocument = '8D Report' AND qpr.quickReportStatusChecker3 = 'Approved' AND qpr.eightDStatusChecker3 = :rejected8d)", { rejectedQuick: ReportStatus.Rejected, rejected8d: ReportStatus.Rejected });
             }
+        } else if (query.status && query.page === "summary-report") {
+            if (query.status === "inprocess") {
+                queryBuilder.andWhere("(qpr.eightDReportStatus <> :completed OR qpr.eightDReportStatus IS NULL)", { completed: ReportStatus.Completed });
+            } else if (query.status === "completed") {
+                queryBuilder.andWhere("(qpr.eightDReportStatus = :completed)", { completed: ReportStatus.Completed });
+            }
         }
+
+        if (query.page === "summary-report" && query.month) {
+            const startDate = moment(query.month).startOf('month').toDate();
+            const endDate = moment(query.month).endOf('month').toDate();
+            queryBuilder.andWhere("qpr.createdAt BETWEEN :start AND :end", {
+                start: startDate,
+                end: endDate,
+            });
+        }      
 
         // กรอง supplier
         if (query.supplier) {
@@ -302,7 +321,7 @@ export class QprService {
             ...(query.supplier ? { supplier: { supplierCode: query.supplier } } : {}),
             delayDocument: '8D Report',
             replyReport: LessThan(new Date()),
-            eightDReportSupplierStatus: Not(ReportStatus.Approved),
+            eightDReportSupplierStatus: Not(In([ReportStatus.Approved, ReportStatus.Completed])),
             activeRow: ActiveStatus.YES,
         }, {
             ...(query.qprNo ? { qprIssueNo: Like(`%${query.qprNo}%`) } : {}),
