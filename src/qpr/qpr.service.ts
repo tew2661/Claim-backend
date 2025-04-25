@@ -103,7 +103,7 @@ export class QprService {
                 </p>
                 <p>
                 Please input and submit the QUICK ACTION REPORT by
-                <strong style="color: blue"> ${moment(newValue.createdAt).format('DD-MM-YYYY HH:mm')}</strong>.
+                <strong style="color: blue"> ${moment(newValue.replyQuickAction).format('DD-MM-YYYY HH:mm')}</strong>.
                 </p>
                 <p>
                 Please access Supplier Claim Management (SCM) through the link below:
