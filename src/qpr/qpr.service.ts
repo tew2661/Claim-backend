@@ -38,7 +38,7 @@ export class QprService {
         private readonly userRepository: Repository<UsersEntity>,
         private readonly myGatewayGateway: MyGatewayGateway,
         private readonly emailService: EmailService
-    ) {}
+    ) { }
     async create(createQprDto: CreateQprDto, actionBy: UsersEntity): Promise<QprEntity> {
         const haveNo = await this.qprRepository.findOne({ where: { qprIssueNo: createQprDto.qprIssueNo, activeRow: ActiveStatus.YES } });
         if (haveNo) {
@@ -278,7 +278,7 @@ export class QprService {
                 start: startDate,
                 end: endDate,
             });
-        }      
+        }
 
         // กรอง supplier
         if (query.supplier) {
@@ -2764,11 +2764,16 @@ export class QprService {
                                 </html>
                             `;
 
-                    this.emailService.sendEmail(
-                        [...emailList, ...(data.data[x]?.supplier?.email || [])].join(','),
-                        'Overdue 8D Report',
-                        htmlContent,
-                    );
+                    await new Promise((resolve) => {
+                        setTimeout(() => {
+                            this.emailService.sendEmail(
+                                [...emailList, ...(data.data[x]?.supplier?.email || [])].join(','),
+                                'Overdue 8D Report',
+                                htmlContent,
+                            );
+                            resolve(true);
+                        }, 5000);
+                    });
                 }
                 // มากกว่า 1-2 วัน ให้ส่งหา Manager
                 // มากกว่า 3-4 วัน ให้ส่งหา GM/DGM
@@ -2810,11 +2815,16 @@ export class QprService {
                                 </html>
                             `;
 
-                    this.emailService.sendEmail(
-                        [...emailList, ...(data.data[x]?.supplier?.email || [])].join(','),
-                        'Overdue Quick Action Report',
-                        htmlContent,
-                    );
+                    await new Promise((resolve) => {
+                        setTimeout(() => {
+                            this.emailService.sendEmail(
+                                [...emailList, ...(data.data[x]?.supplier?.email || [])].join(','),
+                                'Overdue Quick Action Report',
+                                htmlContent,
+                            );
+                            resolve(true);
+                        }, 5000);
+                    });
                 }
 
             }
