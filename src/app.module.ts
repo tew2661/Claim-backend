@@ -11,6 +11,7 @@ import { SupplierModule } from './supplier/supplier.module';
 import { QprModule } from './qpr/qpr.module';
 import { LogsModule } from './logs/logs.module';
 import { EmailModule } from './email/email.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EmailModule } from './email/email.module';
       isGlobal: true, // Make ConfigModule globally available
     }),
     TypeOrmModule.forRoot(dataSource.options),
+    ScheduleModule.forRoot(),
     AuthModule,
     UsersModule,
     NotificationModule,

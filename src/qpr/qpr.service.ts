@@ -1,6 +1,6 @@
 import { ActiveStatus } from './../users/entities/users.entity';
 // src/qpr/qpr.service.ts
-import { BadGatewayException, BadRequestException, Injectable, NotAcceptableException, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, NotAcceptableException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { CreateQprDto } from './dto/create-qpr.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, FindOptionsWhere, In, IsNull, LessThan, Like, MoreThan, Not, Repository } from 'typeorm';
@@ -23,10 +23,11 @@ import * as sharp from 'sharp';
 import * as fs from 'fs';
 import { DocumentType, LogAction, LogEntity, RoleType } from 'src/logs/entities/log.entity';
 import { EmailService } from 'src/email/email.service';
-import { Cron } from '@nestjs/schedule';
+import { Cron, SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 
 @Injectable()
-export class QprService {
+export class QprService implements OnModuleInit {
     constructor(
         @InjectRepository(QprEntity)
         private readonly qprRepository: Repository<QprEntity>,
@@ -37,7 +38,8 @@ export class QprService {
         @InjectRepository(UsersEntity)
         private readonly userRepository: Repository<UsersEntity>,
         private readonly myGatewayGateway: MyGatewayGateway,
-        private readonly emailService: EmailService
+        private readonly emailService: EmailService,
+        private readonly schedulerRegistry: SchedulerRegistry
     ) { }
     async create(createQprDto: CreateQprDto, actionBy: UsersEntity): Promise<QprEntity> {
         const haveNo = await this.qprRepository.findOne({ where: { qprIssueNo: createQprDto.qprIssueNo, activeRow: ActiveStatus.YES } });
@@ -2700,7 +2702,22 @@ export class QprService {
         response.end();
     }
 
-    @Cron('1 0 * * *') // ทุกวันเวลา 00:01
+    onModuleInit() {
+        // แสดงรายชื่อ Cron ทั้งหมดที่ register ไว้
+        const jobs = this.schedulerRegistry.getCronJobs();
+        console.log('🔍 Registered Cron jobs:', Array.from(jobs.keys()));
+
+        // ถ้ามีชื่อ midnight-delay ให้ดู next run
+        if (jobs.has('midnight-delay')) {
+        const job = jobs.get('midnight-delay') as CronJob;
+        console.log(
+            '⏱ midnight-delay next run at',
+            job.nextDates().toString(),
+        );
+        }
+    }
+
+    @Cron('1 0 * * *', { name: 'midnight-delay', timeZone: 'Asia/Bangkok' })
     async handleMidnightTask() {
         const data = await this.findAllDelay({ offset: 0, limit: 0 });
         console.log('⏰ Midnight job started', data.data);

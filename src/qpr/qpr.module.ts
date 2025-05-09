@@ -25,7 +25,7 @@ import { UsersEntity } from 'src/users/entities/users.entity';
     forwardRef(() => AuthModule),
     UsersModule,
     NotificationModule,
-    EmailModule
+    EmailModule,
   ]
 })
 export class QprModule {}
