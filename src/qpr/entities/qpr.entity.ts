@@ -29,6 +29,8 @@ export enum ReportStatus {
 }
 
 @Entity({ schema: 'dbo', name: 'qpr' })
+@Index(['activeRow', 'dateReported'])
+@Index(['activeRow', 'createdAt'])
 export class QprEntity {
     @PrimaryGeneratedColumn()
     id: number;
@@ -58,15 +60,19 @@ export class QprEntity {
     @Column({ name: 'part_name' })
     partName: string;
 
+    @Index()
     @Column({ name: 'part_no' })
     partNo: string;
 
+    @Index()
     @Column()
     model: string;
 
+    @Index()
     @Column()
     when: string;
 
+    @Index()
     @Column()
     who: string;
 
@@ -135,6 +141,7 @@ export class QprEntity {
         img4: string | null;
     };
 
+    @Index()
     @Column({ type: 'nvarchar', name: 'delay_document', default: "Quick Report" })
     delayDocument: "8D Report" | "Quick Report"
 
@@ -142,6 +149,7 @@ export class QprEntity {
     @Column({ name: 'quick_report_status', default: ReportStatus.WaitForSupplier })
     quickReportStatus: ReportStatus;
 
+    @Index()
     @Column({ name: 'quick_report_status_checker_1', nullable: true })
     quickReportStatusChecker1: ReportStatus;
 
@@ -163,6 +171,7 @@ export class QprEntity {
     @Column({ type: 'datetime2', name: 'quick_report_date_checker_3', nullable: true })
     quickReportDateChecker3: Date | null;
 
+    @Index()
     @Column({ name: 'eight_d_status_checker_1', nullable: true })
     eightDStatusChecker1: ReportStatus;
 
