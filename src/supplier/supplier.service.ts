@@ -50,7 +50,7 @@ export class SupplierService {
             password: supplier.password,
         }
 
-        await this.usersService.create(createUserDto, nowSupplier, undefined, true);
+        await this.usersService.create(createUserDto, nowSupplier, undefined, true, actionBy);
         return nowSupplier;
     }
 
