@@ -1,13 +1,23 @@
-version: '3.8'
-
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass your_redis_password
+
   claim-backend:
     build:
-      context: ./backend
+      context: ./
       dockerfile: dockerfile.dev
     volumes:
       - .:/app
       - /app/node_modules
-      - /app/dist
     ports:
-      - "3000:3000"
+      - "3600:3000"
+    environment:
+      - NEST_REDIS_HOST=redis
+      - NEST_REDIS_PORT=6379
+      - NEST_REDIS_PASSWORD=your_redis_password
+      - NEST_REDIS_USER=
+    depends_on:
+      - redis
