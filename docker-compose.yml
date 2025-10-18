@@ -10,8 +10,8 @@ services:
       context: ./
       dockerfile: dockerfile.dev
     volumes:
-      - .:/app
-      - /app/node_modules
+      - ./src:/app/src
+      - ./uploads:/app/uploads
     ports:
       - "3600:3000"
     environment:
@@ -19,5 +19,6 @@ services:
       - NEST_REDIS_PORT=6379
       - NEST_REDIS_PASSWORD=your_redis_password
       - NEST_REDIS_USER=
+      - NEST_PORT=3000
     depends_on:
       - redis
