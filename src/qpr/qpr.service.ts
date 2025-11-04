@@ -2443,14 +2443,35 @@ export class QprService implements OnModuleInit {
 
                     const object8DReportDto = data.object8DReportDto[data.object8DReportDto.length - 1];
                     const object8D = object8DReportDto && object8DReportDto.object8D ? object8DReportDto.object8D : undefined;
-                    const checker1 = object8DReportDto && object8DReportDto.checker1 ? object8DReportDto.checker1 : undefined
-                    const checker2 = object8DReportDto && object8DReportDto.checker2 ? object8DReportDto.checker2 : undefined
-                    let checker3 = object8DReportDto && object8DReportDto.checker3 ? object8DReportDto.checker3 : undefined
-
+                    
+                    // ถ้ามีก่อนหน้าล่าสุด 1 array ให้เก็บไว้
+                    const prevObject8DReportDto = data.object8DReportDto.length >= 2 ? data.object8DReportDto[data.object8DReportDto.length - 2] : undefined;
+                    
+                    // หา checker1: ดูล่าสุดก่อน ถ้าไม่มีไปใช้ก่อนหน้าล่าสุด 1 array และ status เป็น approve
+                    let checker1 = object8DReportDto && object8DReportDto.checker1 ? object8DReportDto.checker1 : undefined;
+                    if (!checker1 && prevObject8DReportDto && prevObject8DReportDto.status === 'approve' && prevObject8DReportDto.checker1) {
+                        checker1 = prevObject8DReportDto.checker1;
+                    }
+                    
+                    // หา checker2: ดูล่าสุดก่อน ถ้าไม่มีไปใช้ก่อนหน้าล่าสุด 1 array และ status เป็น approve
+                    let checker2 = object8DReportDto && object8DReportDto.checker2 ? object8DReportDto.checker2 : undefined;
+                    if (!checker2 && prevObject8DReportDto && prevObject8DReportDto.status === 'approve' && prevObject8DReportDto.checker2) {
+                        checker2 = prevObject8DReportDto.checker2;
+                    }
+                    
+                    // หา checker3: ดูล่าสุดก่อน ถ้าไม่มีไปใช้ก่อนหน้าล่าสุด 1 array และ status เป็น approve
+                    let checker3 = object8DReportDto && object8DReportDto.checker3 ? object8DReportDto.checker3 : undefined;
+                    if (!checker3 && prevObject8DReportDto && prevObject8DReportDto.status === 'approve' && prevObject8DReportDto.checker3) {
+                        checker3 = prevObject8DReportDto.checker3;
+                    }
+                    
+                    // กรณีพิเศษสำหรับ checker3
                     if (data.approve8dAndRejectDocOther == ActiveStatus.YES && data.object8DReportDto.length > 1) {
-                        const filterChecker3 = data.object8DReportDto.filter((x) => x.checker3);
-                        let afterData = filterChecker3 && filterChecker3.length && filterChecker3[filterChecker3.length - 1] || undefined;
-                        checker3 = afterData && afterData.checker3 ? afterData.checker3 : undefined;
+                        const filterChecker3 = data.object8DReportDto.filter((x) => x.checker3 && x.status === 'approve');
+                        const afterData = filterChecker3 && filterChecker3.length ? filterChecker3[filterChecker3.length - 1] : undefined;
+                        if (afterData && afterData.checker3) {
+                            checker3 = afterData.checker3;
+                        }
                     }
 
                     const watermarkText = 'View';
