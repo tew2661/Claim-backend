@@ -828,6 +828,14 @@ export class QprService implements OnModuleInit {
             throw new NotAcceptableException(`ไม่พบเอกสาร id: ${id} อยู่ในระบบ`);
         }
 
+        const checkerAll = check.object8DReportDto && check.object8DReportDto.length > 0 && 
+        check.object8DReportDto[check.object8DReportDto.length - 1].status == 'approve' &&
+        check.object8DReportDto[check.object8DReportDto.length - 1];
+
+        const dueDateReqDocumentOther = checkerAll && checkerAll.checker3 && 
+        checkerAll.checker3.approve == 'approve' &&
+        checkerAll.checker3.dueDateReqDocumentOther;
+
         // คำนวณ index ของ objectQPR ล่าสุด
         const arrObject = query.length - 1;
         const newSketches: UploadSectionDto[] = [];
@@ -866,11 +874,11 @@ export class QprService implements OnModuleInit {
             const currentFileName = query[arrObject].object8D.upload8DReport.name; // ชื่อไฟล์ใหม่
             const existingFilePath = join(__dirname, '..', '..', ..._currentFile.split('/'));
             console.log(existingFilePath)
-            // ตรวจสอบว่าไฟล์เดิมมีอยู่หรือไม่
-            if (existsSync(_currentFile && existingFilePath)) {
-                // ลบไฟล์เดิม
-                unlinkSync(existingFilePath);
-            }
+            // // ตรวจสอบว่าไฟล์เดิมมีอยู่หรือไม่
+            // if (existsSync(_currentFile && existingFilePath)) {
+            //     // ลบไฟล์เดิม
+            //     unlinkSync(existingFilePath);
+            // }
 
             // บันทึกไฟล์ใหม่
             query[arrObject].object8D.upload8DReport = {
@@ -885,23 +893,43 @@ export class QprService implements OnModuleInit {
             Object.assign(existingDraft, query[arrObject], { actionBy: actionBy.name });
         } else {
             // ถ้าไม่มี → เพิ่มใหม่เข้าไป
-            object8DReportDto.push({ ...query[arrObject], status: 'draft', actionBy: actionBy.name });
+            object8DReportDto.push({ 
+                ...query[arrObject], 
+                ...dueDateReqDocumentOther ? {
+                    ...checkerAll,
+                    checker1: {
+                        ...checkerAll.checker1,
+                        dueDateReqDocumentOther: undefined,
+                    },
+                    checker2: {
+                        ...checkerAll.checker2,
+                        dueDateReqDocumentOther: undefined,
+                    },
+                    checker3: undefined,
+                } : {},
+                actionBy: actionBy.name, 
+                status: 'draft' 
+            });
         }
 
         // อัปเดตใน Database
         await this.qprRepository.update(id, {
             object8DReportDto: object8DReportDto,
-            eightDDateChecker1: null,
-            eightDDateChecker2: null,
-            eightDDateChecker3: null,
+            ...!dueDateReqDocumentOther ? {
+                eightDDateChecker1: null,
+                eightDDateChecker2: null,
+                eightDDateChecker3: null,
+                eightDStatusChecker1: null,
+                eightDStatusChecker2: null,
+                eightDStatusChecker3: null,
+            } : {}, 
+            
             // eightDReportApprover: null,
             eightDReportDate: null,
             eightDReportStatus: null,
             eightDReportSupplierStatus: ReportStatus.Save,
             eightDReportSupplierDate: new Date(),
-            eightDStatusChecker1: null,
-            eightDStatusChecker2: null,
-            eightDStatusChecker3: null,
+            
             updatedBy: actionBy,
         });
 
@@ -916,6 +944,16 @@ export class QprService implements OnModuleInit {
         if (!check) {
             throw new NotAcceptableException(`ไม่พบเอกสาร id: ${id} อยู่ในระบบ`);
         }
+
+        const checkerAll = check.object8DReportDto && check.object8DReportDto.length > 0 && 
+        check.object8DReportDto[check.object8DReportDto.length - 1].status == 'approve' &&
+        check.object8DReportDto[check.object8DReportDto.length - 1];
+
+        const dueDateReqDocumentOther = checkerAll && checkerAll.checker3 && 
+        checkerAll.checker3.approve == 'approve' &&
+        checkerAll.checker3.dueDateReqDocumentOther;
+
+        
 
         // คำนวณ index ของ objectQPR ล่าสุด
         const arrObject = query.length - 1;
@@ -957,22 +995,42 @@ export class QprService implements OnModuleInit {
             Object.assign(existingDraft, query[arrObject], { actionBy: actionBy.name, status: 'approve' });
         } else {
             // ถ้าไม่มี → เพิ่มใหม่เข้าไป
-            object8DReportDto.push({ ...query[arrObject], actionBy: actionBy.name, status: 'approve' });
+            object8DReportDto.push({ 
+                ...query[arrObject], 
+                ...dueDateReqDocumentOther ? {
+                    ...checkerAll,
+                    checker1: {
+                        ...checkerAll.checker1,
+                        dueDateReqDocumentOther: undefined,
+                    },
+                    checker2: {
+                        ...checkerAll.checker2,
+                        dueDateReqDocumentOther: undefined,
+                    },
+                    checker3: undefined,
+                } : {},
+                actionBy: actionBy.name, 
+                status: 'approve' 
+            });
         }
 
         // อัปเดตใน Database
         await this.qprRepository.update(id, {
             object8DReportDto: object8DReportDto,
-            eightDDateChecker1: null,
-            eightDDateChecker2: null,
+            ...dueDateReqDocumentOther ? {
+                eightDDateChecker1: null,
+                eightDDateChecker2: null,
+            } : {},
             ...check.approve8dAndRejectDocOther == 'N' ? { eightDDateChecker3: null } : {},
             // eightDReportApprover: null,
             eightDReportDate: new Date(),
             eightDReportStatus: ReportStatus.Pending,
             eightDReportSupplierStatus: ReportStatus.Approved,
             eightDReportSupplierDate: new Date(),
-            eightDStatusChecker1: null,
-            eightDStatusChecker2: null,
+            ...dueDateReqDocumentOther ? {
+                eightDStatusChecker1: null,
+                eightDStatusChecker2: null,
+            } : {},
             ...check.approve8dAndRejectDocOther == 'N' ? { eightDStatusChecker3: null } : {},
             status: ReportStatus.Inprocess,
             updatedBy: actionBy,
