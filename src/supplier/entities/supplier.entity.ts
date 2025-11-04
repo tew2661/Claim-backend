@@ -7,6 +7,7 @@ import {
     UpdateDateColumn,
     DeleteDateColumn,
     ManyToOne,
+    OneToMany,
 } from "typeorm";
 
 export enum ActiveStatus {
@@ -36,6 +37,9 @@ export class SupplierEntity {
 
     @Column({ type: 'nvarchar', name: '_activeRow', length: 1, nullable: false, default: ActiveStatus.YES })
     activeRow: string;
+
+    @OneToMany(() => UsersEntity, user => user.supplier)
+    user: UsersEntity[];
 
     @CreateDateColumn({ type: "datetime", name: "created_at" })
     createdAt: Date; // วันที่สร้างข้อมูล
