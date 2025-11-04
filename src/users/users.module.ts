@@ -6,11 +6,13 @@ import { UsersEntity } from './entities/users.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { NotificationModule } from 'src/my-gateway/my-gateway.module';
 import { EmailModule } from 'src/email/email.module';
+import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 
 @Module({
   imports:[
     TypeOrmModule.forFeature([
       UsersEntity , 
+      SupplierEntity
     ]),
     forwardRef(() => AuthModule),
     NotificationModule,

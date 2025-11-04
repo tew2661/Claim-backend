@@ -18,6 +18,8 @@ export class UsersService {
     constructor(
         @InjectRepository(UsersEntity)
         private readonly usersRepository: Repository<UsersEntity>, // AuthEntity
+        @InjectRepository(SupplierEntity)
+        private readonly supplierRepository: Repository<SupplierEntity>,
         private readonly myGatewayGateway: MyGatewayGateway,
         private readonly emailService: EmailService
     ) { }
@@ -56,7 +58,14 @@ export class UsersService {
     }
 
     findOneForSupplier(id: number) {
-        const data = this.usersRepository.findOne({ relations: ['supplier'], where: { id, activeRow: ActiveStatus.YES, supplier: Not(IsNull()) } });
+        const data = this.usersRepository.findOne({ 
+            relations: ['supplier'], 
+            where: { 
+                id, 
+                activeRow: ActiveStatus.YES, 
+                supplier: { activeRow: ActiveStatus.YES }
+            } 
+        });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
         }
@@ -359,7 +368,14 @@ export class UsersService {
             throw new BadRequestException(`ไม่สามารถเปลี่ยนรหัสผ่านได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
         }
 
-        const data = await this.findOneForSupplier(updatePasswordDto.id);
+        const data = await this.supplierRepository.findOne({ 
+            where: { 
+                id: updatePasswordDto.id,
+                activeRow: ActiveStatus.YES,
+                user: { activeRow: ActiveStatus.YES }
+            },
+            relations: ['user']
+        });
         if (updatePasswordDto.newPassword) {
             fieldUpdate.password = await bcrypt.hash(updatePasswordDto.newPassword, saltRounds);
             fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? null : moment().add(3, 'M').toDate()
