@@ -376,13 +376,17 @@ export class UsersService {
             },
             relations: ['user']
         });
+        const userId = data.user[0].id;
+        if (!userId) {
+            throw new BadRequestException('ไม่พบข้อมูลผู้ใช้งานนี้');
+        }
         if (updatePasswordDto.newPassword) {
             fieldUpdate.password = await bcrypt.hash(updatePasswordDto.newPassword, saltRounds);
             fieldUpdate.expiresPassword = updatePasswordDto.newPassword == 'P@ssw0rd' ? null : moment().add(3, 'M').toDate()
         }
-        await this.usersRepository.update(data.id, fieldUpdate);
+        await this.usersRepository.update(userId, fieldUpdate);
 
-        const newValue = await this.findOneAll(data.id);
+        const newValue = await this.findOneAll(userId);
         if (updatePasswordDto.newPassword == 'P@ssw0rd') {
             const htmlContent = `
                 <!DOCTYPE html>
