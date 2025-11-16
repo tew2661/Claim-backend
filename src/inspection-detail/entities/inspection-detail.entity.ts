@@ -37,20 +37,20 @@ export class InspectionDetailEntity {
     id: number;
 
     @Index()
-    @Column({ name: 'supplier_code', type: 'varchar', length: 50 })
+    @Column({ name: 'supplier_code', type: 'nvarchar', length: 50 })
     supplierCode: string;
 
     @Column({ name: 'supplier_name', type: 'nvarchar', length: 255 })
     supplierName: string;
 
     @Index()
-    @Column({ name: 'part_no', type: 'varchar', length: 100 })
+    @Column({ name: 'part_no', type: 'nvarchar', length: 100 })
     partNo: string;
 
     @Column({ name: 'part_name', type: 'nvarchar', length: 255 })
     partName: string;
 
-    @Column({ name: 'model', type: 'varchar', length: 100 })
+    @Column({ name: 'model', type: 'nvarchar', length: 100 })
     model: string;
 
     @Column({ name: 'ais_file', type: 'nvarchar', length: 500, nullable: true })
@@ -61,7 +61,7 @@ export class InspectionDetailEntity {
 
     @Column({ 
         name: 'part_status', 
-        type: 'varchar', 
+        type: 'nvarchar', 
         length: 20,
         default: PartStatus.Inactive 
     })
@@ -69,7 +69,7 @@ export class InspectionDetailEntity {
 
     @Column({ 
         name: 'supplier_edit_status', 
-        type: 'varchar', 
+        type: 'nvarchar', 
         length: 20,
         default: SupplierEditStatus.Unlocked 
     })

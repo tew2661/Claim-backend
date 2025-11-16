@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { InspectionDetailEntity } from './entities/inspection-detail.entity';
+import { InspectionDetailEntity, ActiveStatus, SupplierEditStatus } from './entities/inspection-detail.entity';
 import { InspectionItemEntity } from './entities/inspection-item.entity';
+import { InspectionSpecialRequestEntity, SpecialRequestStatus } from './entities/inspection-special-request.entity';
 import { SupplierService } from 'src/supplier/supplier.service';
-import { configPath } from 'src/path-files-config';
+import { UsersEntity } from 'src/users/entities/users.entity';
 
 export interface CreateInspectionItemDto {
   no: number;
@@ -29,6 +30,16 @@ export interface CreateInspectionDetailDto {
   supplierEditStatus: string;
 }
 
+export interface CreateSpecialRequestDto {
+  inspectionDetailId: number;
+  specialRequestItems: string[];
+  qty: number;
+  cpCpk: string;
+  dueDate: Date;
+  comments?: string;
+  status?: SpecialRequestStatus;
+}
+
 @Injectable()
 export class InspectionDetailService {
   constructor(
@@ -36,6 +47,8 @@ export class InspectionDetailService {
     private readonly inspectionDetailRepo: Repository<InspectionDetailEntity>,
     @InjectRepository(InspectionItemEntity)
     private readonly inspectionItemRepo: Repository<InspectionItemEntity>,
+    @InjectRepository(InspectionSpecialRequestEntity)
+    private readonly specialRequestRepo: Repository<InspectionSpecialRequestEntity>,
     private readonly supplierService: SupplierService,
   ) {}
 
@@ -73,6 +86,62 @@ export class InspectionDetailService {
     }
 
     return savedDetail;
+  }
+
+  async update(id: number, dto: CreateInspectionDetailDto, actionBy?: UsersEntity) {
+    const existing = await this.inspectionDetailRepo.findOne({
+      where: { id, activeRow: ActiveStatus.YES },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Inspection detail not found');
+    }
+
+    if (actionBy?.role === 'Supplier' && existing.supplierEditStatus === SupplierEditStatus.Locked) {
+      throw new ForbiddenException('This inspection detail is locked for supplier edits');
+    }
+
+    if (!Array.isArray(dto.inspectionItems) || !dto.inspectionItems.length) {
+      throw new BadRequestException('inspectionItems must be a non-empty array');
+    }
+
+    existing.supplierCode = dto.supplierCode;
+    existing.supplierName = dto.supplierName;
+    existing.partNo = dto.partNo;
+    existing.partName = dto.partName;
+    existing.model = dto.model;
+
+    if (Object.prototype.hasOwnProperty.call(dto, 'aisFile')) {
+      existing.aisFile = dto.aisFile ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(dto, 'sdrFile')) {
+      existing.sdrFile = dto.sdrFile ?? null;
+    }
+
+    existing.partStatus = dto.partStatus as any;
+    existing.supplierEditStatus = dto.supplierEditStatus as any;
+    existing.updatedBy = actionBy?.id;
+
+  await this.inspectionDetailRepo.save(existing);
+
+    await this.inspectionItemRepo.delete({ inspectionDetailId: id });
+    const items = dto.inspectionItems.map((item, index) =>
+      this.inspectionItemRepo.create({
+        inspectionDetailId: id,
+        no: Number(item.no ?? index + 1),
+        measuringItem: item.measuringItem,
+        specification: item.specification,
+        tolerancePlus: item.tolerancePlus,
+        toleranceMinus: item.toleranceMinus,
+        inspectionInstrument: item.inspectionInstrument,
+        rank: item.rank as any,
+      }),
+    );
+    if (items.length) {
+      await this.inspectionItemRepo.save(items);
+    }
+
+    return this.findById(id);
   }
 
   async findAll(params: {
@@ -138,6 +207,84 @@ export class InspectionDetailService {
     }));
 
     return { items: result, total };
+  }
+
+  async findById(id: number) {
+    const entity = await this.inspectionDetailRepo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.inspectionItems', 'items')
+      .where('d.id = :id', { id })
+      .andWhere('d.activeRow = :active', { active: 'Y' })
+      .getOne();
+
+    if (!entity) {
+      return null;
+    }
+
+    return {
+      id: entity.id,
+      supplierCode: entity.supplierCode,
+      supplierName: entity.supplierName,
+      partNo: entity.partNo,
+      partName: entity.partName,
+      model: entity.model,
+      aisFile: entity.aisFile || null,
+      sdrFile: entity.sdrFile || null,
+      partStatus: entity.partStatus,
+      supplierEditStatus: entity.supplierEditStatus,
+      inspectionItems: (entity.inspectionItems || []).map((item) => ({
+        id: item.id,
+        inspectionDetailId: item.inspectionDetailId,
+        no: item.no,
+        measuringItem: item.measuringItem,
+        specification: item.specification,
+        tolerancePlus: item.tolerancePlus,
+        toleranceMinus: item.toleranceMinus,
+        inspectionInstrument: item.inspectionInstrument,
+        rank: item.rank,
+      })),
+    };
+  }
+
+  async createSpecialRequest(dto: CreateSpecialRequestDto, actionById?: number) {
+    const entity = this.specialRequestRepo.create({
+      inspectionDetailId: dto.inspectionDetailId,
+      specialRequestItems: JSON.stringify(dto.specialRequestItems || []),
+      qty: dto.qty,
+      cpCpk: dto.cpCpk,
+      dueDate: dto.dueDate,
+      comments: dto.comments,
+      status: dto.status ?? SpecialRequestStatus.Pending,
+      activeRow: ActiveStatus.YES,
+      createdBy: actionById,
+      updatedBy: actionById,
+    });
+
+    return this.specialRequestRepo.save(entity);
+  }
+
+  async listSpecialRequests(inspectionDetailId: number) {
+    const records = await this.specialRequestRepo.find({
+      where: {
+        inspectionDetailId,
+        activeRow: ActiveStatus.YES,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+
+    return records.map((record) => ({
+      id: record.id,
+      inspectionDetailId: record.inspectionDetailId,
+      specialRequestItems: JSON.parse(record.specialRequestItems || '[]'),
+      qty: record.qty,
+      cpCpk: record.cpCpk,
+      dueDate: record.dueDate,
+      status: record.status,
+      comments: record.comments,
+      createdAt: record.createdAt,
+    }));
   }
 
   async listSupplierDropdown() {

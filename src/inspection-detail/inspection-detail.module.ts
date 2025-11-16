@@ -4,13 +4,14 @@ import { InspectionDetailController } from './inspection-detail.controller';
 import { InspectionDetailService } from './inspection-detail.service';
 import { InspectionDetailEntity } from './entities/inspection-detail.entity';
 import { InspectionItemEntity } from './entities/inspection-item.entity';
+import { InspectionSpecialRequestEntity } from './entities/inspection-special-request.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { UsersModule } from 'src/users/users.module';
 import { SupplierModule } from 'src/supplier/supplier.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([InspectionDetailEntity, InspectionItemEntity]),
+  TypeOrmModule.forFeature([InspectionDetailEntity, InspectionItemEntity, InspectionSpecialRequestEntity]),
   forwardRef(() => AuthModule),
   forwardRef(() => UsersModule),
   forwardRef(() => SupplierModule),

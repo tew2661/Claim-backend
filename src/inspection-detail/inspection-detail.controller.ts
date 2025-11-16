@@ -5,8 +5,10 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Res,
+  Req,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -16,10 +18,11 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as fs from 'fs';
 import { extname, join, normalize } from 'path';
-import { InspectionDetailService, CreateInspectionDetailDto } from './inspection-detail.service';
+import { InspectionDetailService, CreateInspectionDetailDto, CreateSpecialRequestDto } from './inspection-detail.service';
 import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 import { configPath } from 'src/path-files-config';
-import { Response } from 'express';
+import { Response, Request } from 'express';
+import { UsersEntity } from 'src/users/entities/users.entity';
 
 const ensureUploadDir = (dir: string) => {
   if (!fs.existsSync(dir)) {
@@ -108,6 +111,120 @@ export class InspectionDetailController {
     };
   }
 
+  @Put(':id')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'aisFile', maxCount: 1 },
+        { name: 'sdrFile', maxCount: 1 },
+      ],
+      {
+        storage: inspectionStorage,
+        limits: { fileSize: 10 * 1024 * 1024 },
+        fileFilter: (req, file, cb) => {
+          if (!allowedFileTypes.includes(file.mimetype)) {
+            return cb(new BadRequestException('Only PDF files are allowed'), false);
+          }
+          cb(null, true);
+        },
+      },
+    ),
+  )
+  async update(
+    @Param('id') id: string,
+    @Body('payload') payload: string,
+    @UploadedFiles()
+    files: {
+      aisFile?: Express.Multer.File[];
+      sdrFile?: Express.Multer.File[];
+    },
+    @Req() req: Request,
+  ) {
+    if (!payload) {
+      throw new BadRequestException('payload is required');
+    }
+
+    const recordId = parseInt(id, 10);
+    if (isNaN(recordId)) {
+      throw new BadRequestException('Invalid id');
+    }
+
+    let parsedBody: CreateInspectionDetailDto;
+    try {
+      parsedBody = JSON.parse(payload);
+    } catch (error) {
+      throw new BadRequestException('Invalid payload format');
+    }
+
+    if (!Array.isArray(parsedBody.inspectionItems) || !parsedBody.inspectionItems.length) {
+      throw new BadRequestException('inspectionItems must be a non-empty array');
+    }
+
+    parsedBody.inspectionItems = parsedBody.inspectionItems.map((item, index) => ({
+      ...item,
+      no: Number(item.no ?? index + 1),
+    }));
+
+    if (files?.aisFile?.[0]) {
+      parsedBody.aisFile = files.aisFile[0]?.filename ?? null;
+    }
+    if (files?.sdrFile?.[0]) {
+      parsedBody.sdrFile = files.sdrFile[0]?.filename ?? null;
+    }
+
+  const actionBy = req.headers.actionBy as unknown as UsersEntity | undefined;
+    const result = await this.inspectionDetailService.update(recordId, parsedBody, actionBy);
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Post('special-request')
+  @UseGuards(JwtAuthGuard)
+  async createSpecialRequest(@Body() body: CreateSpecialRequestDto, @Req() req: Request) {
+    if (!body) {
+      throw new BadRequestException('special request data is required');
+    }
+
+    if (!body.inspectionDetailId) {
+      throw new BadRequestException('inspectionDetailId is required');
+    }
+
+    if (!Array.isArray(body.specialRequestItems) || !body.specialRequestItems.length) {
+      throw new BadRequestException('specialRequestItems must be provided');
+    }
+
+    const actionBy = req.headers.actionBy as unknown as UsersEntity | undefined;
+
+    const parsedDto = {
+      ...body,
+      dueDate: new Date(body.dueDate),
+    };
+
+    const result = await this.inspectionDetailService.createSpecialRequest(parsedDto, actionBy?.id);
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('special-request/:inspectionDetailId')
+  @UseGuards(JwtAuthGuard)
+  async getSpecialRequests(@Param('inspectionDetailId') inspectionDetailId: string) {
+    const id = parseInt(inspectionDetailId, 10);
+    if (isNaN(id)) {
+      throw new BadRequestException('inspectionDetailId must be a number');
+    }
+
+    const data = await this.inspectionDetailService.listSpecialRequests(id);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get('files/:filename')
   @UseGuards(JwtAuthGuard)
   async downloadFile(@Param('filename') filename: string, @Res() res: Response) {
@@ -140,6 +257,25 @@ export class InspectionDetailController {
     return {
       success: true,
       data: list,
+    };
+  }
+
+  @Get('detail/:id')
+  @UseGuards(JwtAuthGuard)
+  async getDetail(@Param('id') id: string) {
+    const recordId = parseInt(id, 10);
+    if (isNaN(recordId)) {
+      throw new BadRequestException('Invalid id');
+    }
+
+    const detail = await this.inspectionDetailService.findById(recordId);
+    if (!detail) {
+      throw new NotFoundException('Inspection detail not found');
+    }
+
+    return {
+      success: true,
+      data: detail,
     };
   }
 
