@@ -315,5 +315,27 @@ export class InspectionDetailController {
     };
   }
 
+  @Get('export')
+  @UseGuards(JwtAuthGuard)
+  async export(@Query('supplierCode') supplierCode?: string,
+               @Query('partNo') partNo?: string,
+               @Query('partName') partName?: string,
+               @Query('model') model?: string,
+               @Query('partStatus') partStatus?: string,
+               @Query('supplierEditStatus') supplierEditStatus?: string) {
+    const data = await this.inspectionDetailService.findAllForExport({
+      supplierCode,
+      partNo,
+      partName,
+      model,
+      partStatus,
+      supplierEditStatus,
+    });
+    return {
+      success: true,
+      data,
+    };
+  }
+
 
 }

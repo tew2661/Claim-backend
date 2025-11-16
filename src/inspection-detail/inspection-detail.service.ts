@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { InspectionDetailEntity, ActiveStatus, SupplierEditStatus } from './entities/inspection-detail.entity';
 import { InspectionItemEntity } from './entities/inspection-item.entity';
 import { InspectionSpecialRequestEntity, SpecialRequestStatus } from './entities/inspection-special-request.entity';
@@ -38,6 +38,20 @@ export interface CreateSpecialRequestDto {
   dueDate: Date;
   comments?: string;
   status?: SpecialRequestStatus;
+}
+
+export interface InspectionDetailFilterOptions {
+  supplierCode?: string;
+  partNo?: string;
+  partName?: string;
+  model?: string;
+  partStatus?: string;
+  supplierEditStatus?: string;
+}
+
+export interface InspectionDetailListOptions extends InspectionDetailFilterOptions {
+  skip?: number;
+  take?: number;
 }
 
 @Injectable()
@@ -144,31 +158,11 @@ export class InspectionDetailService {
     return this.findById(id);
   }
 
-  async findAll(params: {
-    skip?: number;
-    take?: number;
-    supplierCode?: string;
-    partNo?: string;
-    partName?: string;
-    model?: string;
-    partStatus?: string;
-    supplierEditStatus?: string;
-  }) {
-    const {
-      skip = 0,
-      take = 10,
-      supplierCode,
-      partNo,
-      partName,
-      model,
-      partStatus,
-      supplierEditStatus,
-    } = params;
-
-    const qb = this.inspectionDetailRepo
-      .createQueryBuilder('d')
-      .leftJoinAndSelect('d.inspectionItems', 'items')
-      .where('d.activeRow = :active', { active: 'Y' });
+  private applyFiltersToQuery(
+    qb: SelectQueryBuilder<InspectionDetailEntity>,
+    filters: InspectionDetailFilterOptions,
+  ) {
+    const { supplierCode, partNo, partName, model, partStatus, supplierEditStatus } = filters;
 
     if (supplierCode && supplierCode !== 'All') {
       qb.andWhere('d.supplierCode = :supplierCode', { supplierCode });
@@ -188,6 +182,31 @@ export class InspectionDetailService {
     if (supplierEditStatus && supplierEditStatus !== 'All') {
       qb.andWhere('d.supplierEditStatus = :supplierEditStatus', { supplierEditStatus });
     }
+  }
+
+  private buildInspectionDetailQuery(filters: InspectionDetailFilterOptions) {
+    const qb = this.inspectionDetailRepo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.inspectionItems', 'items')
+      .where('d.activeRow = :active', { active: 'Y' });
+
+    this.applyFiltersToQuery(qb, filters);
+    return qb;
+  }
+
+  async findAll(params: InspectionDetailListOptions) {
+    const {
+      skip = 0,
+      take = 10,
+      supplierCode,
+      partNo,
+      partName,
+      model,
+      partStatus,
+      supplierEditStatus,
+    } = params;
+
+    const qb = this.buildInspectionDetailQuery({ supplierCode, partNo, partName, model, partStatus, supplierEditStatus });
 
     qb.skip(skip).take(take).orderBy('d.createdAt', 'DESC');
 
@@ -207,6 +226,25 @@ export class InspectionDetailService {
     }));
 
     return { items: result, total };
+  }
+
+  async findAllForExport(filters: InspectionDetailFilterOptions) {
+    const qb = this.buildInspectionDetailQuery(filters);
+    qb.orderBy('d.createdAt', 'DESC');
+    const itemsList = await qb.getMany();
+
+    return itemsList.map((d) => ({
+      id: d.id,
+      supplierName: d.supplierName,
+      partNo: d.partNo,
+      partName: d.partName,
+      model: d.model,
+      docAisUrl: d.aisFile ? d.aisFile : null,
+      docSdrUrl: d.sdrFile ? d.sdrFile : null,
+      inspectionPoints: d.inspectionItems?.length || 0,
+      partStatus: d.partStatus,
+      supplierEditStatus: d.supplierEditStatus,
+    }));
   }
 
   async findById(id: number) {
