@@ -6,7 +6,8 @@ const configPath = {
     pathFileTickets: `uploads/images/tickets`,
     pathUploadQpr: `uploads/images/qpr/create-qpr`,
     pathUploadSupplierQpr: `uploads/images/qpr/supplier-qpr`,
-    pathUploadSupplier8d: `uploads/images/qpr/supplier-8d`
+    pathUploadSupplier8d: `uploads/images/qpr/supplier-8d`,
+    pathUploadInspectionDetail: `uploads/inspection-detail`,
 }
 
 export { configPath }
