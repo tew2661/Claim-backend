@@ -75,6 +75,13 @@ export class InspectionDetailEntity {
     })
     supplierEditStatus: SupplierEditStatus;
 
+    @Column({
+        name: 'sds_created',
+        type: 'bit',
+        default: () => '0',
+    })
+    sdsCreated: boolean;
+
     @Column({ 
         name: 'active_row', 
         type: 'char', 
@@ -111,6 +118,6 @@ export class InspectionDetailEntity {
     @JoinColumn({ name: 'updated_by' })
     updater: UsersEntity;
 
-    @OneToMany(() => InspectionItemEntity, item => item.inspectionDetail, { cascade: true })
+    @OneToMany(() => InspectionItemEntity, (item: InspectionItemEntity) => item.inspectionDetail, { cascade: true })
     inspectionItems: InspectionItemEntity[];
 }

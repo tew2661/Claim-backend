@@ -1,0 +1,29 @@
+export interface ListInspectionDetailsQueryDto {
+    monthYear?: string;
+    partNo?: string;
+    partName?: string;
+    model?: string;
+    sdsType?: 'All' | 'Special' | 'Normal';
+    skip?: number;
+    limit?: number;
+}
+
+export interface InspectionDetailListItem {
+    no: number;
+    id: number;
+    supplierName: string;
+    partNo: string;
+    partName: string;
+    model: string;
+    monthYear: string;
+    sdsType: 'Special' | 'Normal';
+    supplierStatus: string;
+    dueDate?: string | null;
+    hasDelay: boolean;
+    sdsCreated: boolean;
+}
+
+export interface InspectionDetailListResponse {
+    items: InspectionDetailListItem[];
+    total: number;
+}

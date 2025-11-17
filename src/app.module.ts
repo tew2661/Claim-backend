@@ -13,6 +13,7 @@ import { LogsModule } from './logs/logs.module';
 import { EmailModule } from './email/email.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InspectionDetailModule } from './inspection-detail/inspection-detail.module';
+import { SampleDataSheetModule } from './sample-data-sheet/sample-data-sheet.module';
 
 @Module({
   imports: [
@@ -27,8 +28,9 @@ import { InspectionDetailModule } from './inspection-detail/inspection-detail.mo
   SupplierModule,
     QprModule,
     LogsModule,
-  EmailModule,
+    EmailModule,
   InspectionDetailModule,
+  SampleDataSheetModule,
   ],
   controllers: [AppController],
   providers: [AppService],

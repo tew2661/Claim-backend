@@ -282,6 +282,7 @@ export class InspectionDetailController {
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(
+    @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     @Query('page') page = '1',
     @Query('limit') limit = '10',
     @Query('supplierCode') supplierCode?: string,
@@ -298,7 +299,7 @@ export class InspectionDetailController {
     const { items, total } = await this.inspectionDetailService.findAll({
       skip,
       take,
-      supplierCode,
+      supplierCode: actionBy?.role === 'Supplier' ? actionBy?.supplier?.supplierCode : supplierCode,
       partNo,
       partName,
       model,
