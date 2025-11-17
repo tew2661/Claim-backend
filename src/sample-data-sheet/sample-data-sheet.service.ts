@@ -128,6 +128,9 @@ export class SampleDataSheetService {
         if (filters.model && filters.model.toLowerCase() !== 'all') {
             query.andWhere('detail.model = :model', { model: filters.model });
         }
+        if (filters.supplierCode && filters.supplierCode.toLowerCase() !== 'all') {
+            query.andWhere('detail.supplier_code = :supplierCode', { supplierCode: filters.supplierCode });
+        }
 
         const details = await query.getMany();
         const detailIds = details.map(detail => detail.id);
@@ -161,6 +164,7 @@ export class SampleDataSheetService {
                 : false;
 
             return {
+                supplierCode: detail.supplierCode,
                 id: detail.id,
                 no: 0,
                 supplierName: detail.supplierName,
@@ -178,10 +182,12 @@ export class SampleDataSheetService {
 
         const monthFilter = filters.monthYear?.toLowerCase();
         const typeFilter = filters.sdsType?.toLowerCase();
+        const statusFilter = filters.status?.toLowerCase();
         const filtered = rows.filter((row) => {
             const matchMonth = !monthFilter || monthFilter === 'all' || monthFilter === row.monthYear;
             const matchType = !typeFilter || typeFilter === 'all' || row.sdsType.toLowerCase() === typeFilter;
-            return matchMonth && matchType;
+            const matchStatus = !statusFilter || statusFilter === 'all' || row.supplierStatus.toLowerCase() === statusFilter;
+            return matchMonth && matchType && matchStatus;
         });
 
         const paginated = filtered.slice(skip, skip + limit);

@@ -4,6 +4,8 @@ export interface ListInspectionDetailsQueryDto {
     partName?: string;
     model?: string;
     sdsType?: 'All' | 'Special' | 'Normal';
+    supplierCode?: string;
+    status?: string;
     skip?: number;
     limit?: number;
 }
@@ -11,6 +13,7 @@ export interface ListInspectionDetailsQueryDto {
 export interface InspectionDetailListItem {
     no: number;
     id: number;
+    supplierCode: string;
     supplierName: string;
     partNo: string;
     partName: string;
