@@ -12,6 +12,7 @@ import {
     Param,
     Put,
     NotFoundException,
+    Res,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -23,7 +24,7 @@ import { SampleDataSheetService } from './sample-data-sheet.service';
 import { CreateSampleDataSheetDto } from './dto/create-sample-data-sheet.dto';
 import { ListInspectionDetailsQueryDto } from './dto/list-inspection-details.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
-import { Request } from 'express';
+import { Response } from 'express';
 
 const ensureUploadDir = (dir: string) => {
     if (!fs.existsSync(dir)) {
@@ -121,6 +122,35 @@ export class SampleDataSheetController {
         };
     }
 
+    @Get('by-inspection/pdf/:inspectionDetailId')
+    @UseGuards(JwtAuthGuard)
+    async getByInspectionDetailPdf(
+        @Param('inspectionDetailId') inspectionDetailId: string,
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Res() res: Response
+    ) {
+        const id = Number(inspectionDetailId);
+        if (!id || Number.isNaN(id)) {
+            throw new BadRequestException('Invalid inspection detail id');
+        }
+
+        const sheet = await this.sampleDataSheetService.findByInspectionDetailId(id);
+        if (!sheet) {
+            throw new NotFoundException('Sample Data Sheet not found');
+        }
+
+        const pdfBytes1 = await this.sampleDataSheetService.PdfView(sheet, actionBy, true);
+        const rawFileName = `${sheet.partNo}-${sheet.partName}`;
+        const sanitizedFileName = rawFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const encodedFileName = encodeURIComponent(rawFileName);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename=${sanitizedFileName}.pdf`);
+        res.setHeader('Access-Control-Expose-Headers', 'File-Name, Content-Disposition');
+        res.setHeader('File-Name', `${encodedFileName}.pdf`);
+        res.send(Buffer.from(pdfBytes1));
+    }
+
     @Get('by-inspection/:inspectionDetailId')
     @UseGuards(JwtAuthGuard)
     async getByInspectionDetail(@Param('inspectionDetailId') inspectionDetailId: string) {
@@ -211,8 +241,10 @@ export class SampleDataSheetController {
 
     @Get('inspection-details')
     @UseGuards(JwtAuthGuard)
-    async listInspectionDetails(@Query() query: ListInspectionDetailsQueryDto, @Req() req: Request) {
-    const actionBy = (req.headers.actionBy as unknown) as UsersEntity | undefined;
+    async listInspectionDetails(
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Query() query: ListInspectionDetailsQueryDto,
+    ) {
         const supplierCode = actionBy?.role === 'Supplier'
             ? actionBy?.supplier?.supplierCode
             : undefined;
