@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { SampleDataSheetEntity } from './entities/sample-data-sheet.entity';
 import { SampleDataSheetRowEntity } from './entities/sample-data-sheet-row.entity';
+import { SampleDataSheetApprovalEntity, SdsApprovalAction, SdsApprovalRole, SdsDocumentType } from './entities/sample-data-sheet-approval.entity';
 import { CreateSampleDataSheetDto, CreateSampleDataSheetRowDto } from './dto/create-sample-data-sheet.dto';
 import {
     SampleDataSheetResponse,
@@ -17,6 +18,7 @@ import {
     ListInspectionDetailsQueryDto,
 } from './dto/list-inspection-details.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
+import { SdsApprovalDto, SdsApprovalHistoryQueryDto } from './dto/sds-approval.dto';
 import { join } from 'path';
 import { readFileSync } from 'fs';
 import { PDFDocument, PDFPage, degrees, rgb } from 'pdf-lib';
@@ -57,10 +59,14 @@ export class SampleDataSheetService {
         private readonly sheetRepo: Repository<SampleDataSheetEntity>,
         @InjectRepository(SampleDataSheetRowEntity)
         private readonly rowRepo: Repository<SampleDataSheetRowEntity>,
+        @InjectRepository(SampleDataSheetApprovalEntity)
+        private readonly approvalRepo: Repository<SampleDataSheetApprovalEntity>,
         @InjectRepository(InspectionDetailEntity)
         private readonly inspectionRepo: Repository<InspectionDetailEntity>,
         @InjectRepository(InspectionSpecialRequestEntity)
         private readonly specialRequestRepo: Repository<InspectionSpecialRequestEntity>,
+        @InjectDataSource()
+        private readonly dataSource: DataSource,
     ) { }
 
     async create(
@@ -122,6 +128,7 @@ export class SampleDataSheetService {
         sheet.inspectionDetailId = dto.inspectionDetailId;
         sheet.aisFile = inspectionDetail.aisFile ?? sheet.aisFile;
         sheet.sdrFile = inspectionDetail.sdrFile ?? sheet.sdrFile;
+        sheet.loop += 1;
         const reportFile = files.sdrReportFile ?? sheet.sdrReportFile;
         if (dto.production08_2025 === 'Yes' && !reportFile) {
             throw new BadRequestException('SDR report is required when production is Yes');
@@ -149,94 +156,217 @@ export class SampleDataSheetService {
         const skip = Number.isNaN(Number(filters.skip)) ? 0 : Number(filters.skip);
         const limit = Number.isNaN(Number(filters.limit)) ? 10 : Number(filters.limit);
 
-        const query = this.inspectionRepo.createQueryBuilder('detail')
-            .where('detail.activeRow = :active', { active: ActiveStatus.YES })
-            .orderBy('detail.createdAt', 'DESC');
+        // Build optimized query with subqueries
+        let query = `
+            SELECT
+                detail.*,
+                sheet.id as sheet_id,
+                sheet.loop as sheet_loop,
+                (
+                    SELECT TOP(1) sr.due_date
+                    FROM dbo.sds_inspection_special_request sr
+                    WHERE sr.inspection_detail_id = sheet.inspection_detail_id
+                    ORDER BY sr.id DESC
+                ) as due_date,
+                (
+                    SELECT TOP(1) sr.id
+                    FROM dbo.sds_inspection_special_request sr
+                    WHERE sr.inspection_detail_id = sheet.inspection_detail_id
+                    ORDER BY sr.id DESC
+                ) as special_id,
+                (
+                    SELECT TOP(1) app.action
+                    FROM dbo.sample_data_sheet_approvals app
+                    WHERE app.sample_data_sheet_id = sheet.id
+                    AND app.loop = sheet.loop
+                    AND app.document_type = 'SDR'
+                    AND app.role = 'Checker 1'
+                    ORDER BY app.id DESC
+                ) as checker1ApprovedSdr,
+                (
+                    SELECT TOP(1) app.action
+                    FROM dbo.sample_data_sheet_approvals app
+                    WHERE app.sample_data_sheet_id = sheet.id
+                    AND app.loop = sheet.loop
+                    AND app.document_type = 'SDS'
+                    AND app.role = 'Checker 1'
+                    ORDER BY app.id DESC
+                ) as checker1ApprovedSds,
+                (
+                    SELECT TOP(1) app.action
+                    FROM dbo.sample_data_sheet_approvals app
+                    WHERE app.sample_data_sheet_id = sheet.id
+                    AND app.loop = sheet.loop
+                    AND app.document_type = 'SDR'
+                    AND app.role = 'Checker 2'
+                    ORDER BY app.id DESC
+                ) as checker2ApprovedSdr,
+                (
+                    SELECT TOP(1) app.action
+                    FROM dbo.sample_data_sheet_approvals app
+                    WHERE app.sample_data_sheet_id = sheet.id
+                    AND app.loop = sheet.loop
+                    AND app.document_type = 'SDS'
+                    AND app.role = 'Checker 2'
+                    ORDER BY app.id DESC
+                ) as checker2ApprovedSds,
+                (
+                    SELECT TOP(1) app.action
+                    FROM dbo.sample_data_sheet_approvals app
+                    WHERE app.sample_data_sheet_id = sheet.id
+                    AND app.loop = sheet.loop
+                    AND app.document_type = 'SDR'
+                    AND app.role = 'Approver'
+                    ORDER BY app.id DESC
+                ) as checker3ApprovedSdr,
+                (
+                    SELECT TOP(1) app.action
+                    FROM dbo.sample_data_sheet_approvals app
+                    WHERE app.sample_data_sheet_id = sheet.id
+                    AND app.loop = sheet.loop
+                    AND app.document_type = 'SDS'
+                    AND app.role = 'Approver'
+                    ORDER BY app.id DESC
+                ) as checker3ApprovedSds
+            FROM dbo.sds_inspection_detail detail
+            INNER JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            WHERE detail.active_row = 'Y'
+            AND detail.sds_created = 1
+        `;
 
+        const filterParams: any[] = [];
+        let paramIndex = 0;
+        let querys = '';
+        
         if (supplierCode) {
-            query.andWhere('detail.supplierCode = :supplierCode', { supplierCode });
+            querys += ` AND detail.supplier_code = @${paramIndex}`;
+            filterParams.push(supplierCode);
+            paramIndex++;
         }
 
         if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
-            query.andWhere('detail.partNo = :partNo', { partNo: filters.partNo });
+            querys += ` AND detail.part_no = @${paramIndex}`;
+            filterParams.push(filters.partNo);
+            paramIndex++;
         }
+
         if (filters.partName && filters.partName.toLowerCase() !== 'all') {
-            query.andWhere('detail.partName = :partName', { partName: filters.partName });
+            querys += ` AND detail.part_name = @${paramIndex}`;
+            filterParams.push(filters.partName);
+            paramIndex++;
         }
+
         if (filters.model && filters.model.toLowerCase() !== 'all') {
-            query.andWhere('detail.model = :model', { model: filters.model });
+            querys += ` AND detail.model = @${paramIndex}`;
+            filterParams.push(filters.model);
+            paramIndex++;
         }
+
         if (filters.supplierCode && filters.supplierCode.toLowerCase() !== 'all') {
-            query.andWhere('detail.supplier_code = :supplierCode', { supplierCode: filters.supplierCode });
+            querys += ` AND detail.supplier_code = @${paramIndex}`;
+            filterParams.push(filters.supplierCode);
+            paramIndex++;
         }
 
-        const details = await query.getMany();
-        const detailIds = details.map(detail => detail.id);
+        if (filters.monthYear && filters.monthYear.toLowerCase() !== 'all') {
+            const monthYear = filters.monthYear.split('-');
+            const month = parseInt(monthYear[0], 10);
+            const year = parseInt(monthYear[1], 10);
+            querys += ` AND MONTH(sheet.sdr_date) = @${paramIndex} AND YEAR(sheet.sdr_date) = @${paramIndex + 1}`;
+            filterParams.push(month, year);
+            paramIndex += 2;
+        }
 
-        const specialRequests = detailIds.length
-            ? await this.specialRequestRepo.createQueryBuilder('sr')
-                .where('sr.inspectionDetailId IN (:...ids)', { ids: detailIds })
-                .andWhere('sr.activeRow = :active', { active: ActiveStatus.YES })
-                .orderBy('sr.createdAt', 'DESC')
-                .getMany()
-            : [];
-
-        const latestSpecialMap = new Map<number, InspectionSpecialRequestEntity>();
-        specialRequests.forEach((request) => {
-            if (!latestSpecialMap.has(request.inspectionDetailId)) {
-                latestSpecialMap.set(request.inspectionDetailId, request);
+        if (filters.sdsType && filters.sdsType.toLowerCase() !== 'all') {
+            if (filters.sdsType.toLowerCase() === 'special') {
+                querys += ` AND EXISTS (
+                    SELECT 1
+                    FROM dbo.sds_inspection_special_request sr_filter
+                    WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                    -- ORDER BY sr_filter.id DESC
+                )`;
+            } else if (filters.sdsType.toLowerCase() === 'normal') {
+                querys += ` AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.sds_inspection_special_request sr_filter
+                    WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                    -- ORDER BY sr_filter.id DESC
+                )`;
             }
-        });
+        }
+        
+        query += querys;
+        query += ` ORDER BY detail.created_at DESC`;
+        query += ` OFFSET ${skip} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+        const queryParams = [...filterParams];
+        
+        // Get total count
+        let countQuery = `
+            SELECT COUNT(*) as total
+            FROM dbo.sds_inspection_detail detail
+            INNER JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            WHERE detail.active_row = 'Y'
+            AND detail.sds_created = 1
+        `;
+
+        const rawResults = await this.dataSource.query(query, queryParams);
+        const countResult = await this.dataSource.query(countQuery + querys, filterParams);
+        
+        const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
+
+        if (total === 0) {
+            return { total: 0, items: [] };
+        }
 
         const now = this.startOfDay(new Date());
-        const rows = details.map((detail) => {
-            const special = latestSpecialMap.get(detail.id);
-            const dueDate = special?.dueDate ?? null;
+        // Process results
+        const rows: InspectionDetailListItem[] = rawResults.map((row, index) => {
+
+            const checker1Approved = row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved';
+            const checker1Rejected = row.checker1ApprovedSdr === 'Rejected' || row.checker1ApprovedSds === 'Rejected';
+            const checker2Approved = row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved';
+            const checker2Rejected = row.checker2ApprovedSdr === 'Rejected' || row.checker2ApprovedSds === 'Rejected';
+            const checker3Approved = row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved';
+            const checker3Rejected = row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected';
+            const supplierStatus = checker1Approved || checker2Approved || checker3Approved ||
+                checker1Rejected || checker2Rejected || checker3Rejected ? 'Wait for JATH Approve' : 'Pending';
+            const hasAnyRejection = checker1Rejected || checker2Rejected || checker3Rejected;
+
+            const dueDate = row.due_date ? new Date(row.due_date) : null;
             const monthYear = dueDate
                 ? this.formatMonthYear(dueDate)
-                : this.formatMonthYear(detail.createdAt);
-            const sdsType: 'Special' | 'Normal' = special ? 'Special' : 'Normal';
-            const supplierStatus = special?.status ?? SpecialRequestStatus.Pending;
-            const hasDelay = dueDate
-                ? special?.status === SpecialRequestStatus.Pending && this.startOfDay(dueDate).getTime() < now.getTime()
-                : false;
+                : this.formatMonthYear(new Date(row.created_at));
+            const sdsType: 'Special' | 'Normal' = row.special_id ? 'Special' : 'Normal';
+            const hasDelay = dueDate ? this.startOfDay(dueDate).getTime() < now.getTime() : false;
 
             return {
-                supplierCode: detail.supplierCode,
-                id: detail.id,
-                no: 0,
-                supplierName: detail.supplierName,
-                partNo: detail.partNo,
-                partName: detail.partName,
-                model: detail.model,
+                ...row,
+                supplierCode: row.supplier_code,
+                id: row.id,
+                no: index + 1 + skip,
+                supplierName: row.supplier_name,
+                partNo: row.part_no,
+                partName: row.part_name,
+                model: row.model,
                 monthYear,
                 sdsType,
                 supplierStatus,
                 dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
                 hasDelay,
-                sdsCreated: detail.sdsCreated,
-            } as InspectionDetailListItem;
-        });
-
-        const monthFilter = filters.monthYear?.toLowerCase();
-        const typeFilter = filters.sdsType?.toLowerCase();
-        const statusFilter = filters.status?.toLowerCase();
-        const filtered = rows.filter((row) => {
-            const matchMonth = !monthFilter || monthFilter === 'all' || monthFilter === row.monthYear;
-            const matchType = !typeFilter || typeFilter === 'all' || row.sdsType.toLowerCase() === typeFilter;
-            const matchStatus = !statusFilter || statusFilter === 'all' || row.supplierStatus.toLowerCase() === statusFilter;
-            return matchMonth && matchType && matchStatus;
-        });
-
-        const paginated = filtered.slice(skip, skip + limit);
-        const items = paginated.map((row, index) => ({
-            ...row,
-            no: skip + index + 1,
-        }));
+                sdsCreated: row.sds_created,
+                checker1Approved,
+                checker1Rejected,
+                checker2Approved,
+                checker2Rejected,
+                checker3Approved,
+                checker3Rejected,
+                hasAnyRejection,
+            }
+        })
 
         return {
-            total: filtered.length,
-            items,
+            total: total,
+            items: rows,
         };
     }
 
@@ -603,4 +733,126 @@ export class SampleDataSheetService {
         }
         return batches.length ? batches : [[]];
     };
+
+    async submitApproval(dto: SdsApprovalDto, actionByUser: UsersEntity): Promise<void> {
+        const sheet = await this.sheetRepo.findOne({ where: { id: dto.id } });
+        if (!sheet) {
+            throw new NotFoundException('Sample Data Sheet not found');
+        }
+
+        const reSubmitDate = dto.reSubmitDate ? new Date(dto.reSubmitDate) : null;
+
+        // Get month-year from SDR date (e.g., "08-2025")
+        const sdsMonthYear = moment(sheet.sdrDate).format('MM-YYYY');
+
+        // Determine user role from approveRole parameter
+        let role: SdsApprovalRole = SdsApprovalRole.SUPPLIER;
+        if (dto.approveRole === 'checker1') {
+            role = SdsApprovalRole.CHECKER1;
+        } else if (dto.approveRole === 'checker2') {
+            role = SdsApprovalRole.CHECKER2;
+        } else if (dto.approveRole === 'approver') {
+            role = SdsApprovalRole.APPROVER;
+        } else if (dto.approveRole === 'supplier') {
+            role = SdsApprovalRole.SUPPLIER;
+        }
+
+        // Save SDR approval log
+        if (dto.actionSdrApproval && dto.actionSdrApproval !== '') {
+            const sdrAction = dto.actionSdrApproval === 'approve' 
+                ? SdsApprovalAction.APPROVED 
+                : SdsApprovalAction.REJECTED;
+
+            const sdrApproval = this.approvalRepo.create({
+                sampleDataSheetId: sheet.id,
+                action: sdrAction,
+                role: role,
+                loop: sheet.loop,
+                documentType: SdsDocumentType.SDR,
+                actionByUserId: actionByUser.id,
+                remark: dto.remark || null,
+                reSubmitDate: reSubmitDate,
+                partNo: sheet.partNo,
+                sdsMonthYear: sdsMonthYear,
+            });
+
+            await this.approvalRepo.save(sdrApproval);
+        }
+
+        // Save SDS approval log
+        if (dto.actionSdsApproval && dto.actionSdsApproval !== '') {
+            const sdsAction = dto.actionSdsApproval === 'approve' 
+                ? SdsApprovalAction.APPROVED 
+                : SdsApprovalAction.REJECTED;
+
+            const sdsApproval = this.approvalRepo.create({
+                sampleDataSheetId: sheet.id,
+                action: sdsAction,
+                role: role,
+                loop: sheet.loop,
+                documentType: SdsDocumentType.SDS,
+                actionByUserId: actionByUser.id,
+                remark: dto.remark || null,
+                reSubmitDate: reSubmitDate,
+                partNo: sheet.partNo,
+                sdsMonthYear: sdsMonthYear,
+            });
+
+            await this.approvalRepo.save(sdsApproval);
+        }
+    }
+
+    async getApprovalHistory(query: SdsApprovalHistoryQueryDto) {
+        const qb = this.approvalRepo
+            .createQueryBuilder('approval')
+            .leftJoinAndSelect('approval.actionByUser', 'user')
+            .leftJoinAndSelect('approval.sampleDataSheet', 'sheet')
+            .orderBy('approval.actionDate', 'DESC');
+
+        if (query.partNo) {
+            qb.andWhere('approval.partNo LIKE :partNo', { partNo: `%${query.partNo}%` });
+        }
+
+        if (query.sdsMonthYear) {
+            qb.andWhere('approval.sdsMonthYear = :sdsMonthYear', { sdsMonthYear: query.sdsMonthYear });
+        }
+
+        if (query.action) {
+            qb.andWhere('approval.action = :action', { action: query.action });
+        }
+
+        if (query.role) {
+            qb.andWhere('approval.role = :role', { role: query.role });
+        }
+
+        if (query.actionDate) {
+            const startDate = new Date(query.actionDate);
+            const endDate = new Date(query.actionDate);
+            endDate.setDate(endDate.getDate() + 1);
+            qb.andWhere('approval.actionDate >= :startDate AND approval.actionDate < :endDate', {
+                startDate,
+                endDate,
+            });
+        }
+
+        if (query.actionBy) {
+            qb.andWhere('user.name LIKE :actionBy OR user.email LIKE :actionBy', {
+                actionBy: `%${query.actionBy}%`,
+            });
+        }
+
+        const approvals = await qb.getMany();
+
+        return approvals.map(approval => ({
+            id: approval.id,
+            menu: 'SDS Approval',
+            partNo: approval.partNo,
+            sdsMonthYear: approval.sdsMonthYear,
+            action: approval.action,
+            actionRole: approval.role,
+            actionBy: approval.actionByUser?.name || approval.actionByUser?.email || '',
+            actionDate: approval.actionDate,
+            remark: approval.remark || '',
+        }));
+    }
 }

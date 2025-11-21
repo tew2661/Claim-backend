@@ -23,6 +23,7 @@ import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 import { SampleDataSheetService } from './sample-data-sheet.service';
 import { CreateSampleDataSheetDto } from './dto/create-sample-data-sheet.dto';
 import { ListInspectionDetailsQueryDto } from './dto/list-inspection-details.dto';
+import { SdsApprovalDto, SdsApprovalHistoryQueryDto } from './dto/sds-approval.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { Response } from 'express';
 
@@ -249,6 +250,34 @@ export class SampleDataSheetController {
             ? actionBy?.supplier?.supplierCode
             : undefined;
         const result = await this.sampleDataSheetService.listInspectionDetails(query, supplierCode);
+        return {
+            success: true,
+            data: result,
+        };
+    }
+
+    @Post('sds-approval')
+    @UseGuards(JwtAuthGuard)
+    async submitSdsApproval(
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Body('payload') payload: SdsApprovalDto,
+    ) {
+        if (!payload) {
+            throw new BadRequestException('payload is required');
+        }
+
+        await this.sampleDataSheetService.submitApproval(payload, actionBy);
+
+        return {
+            success: true,
+            message: 'Approval submitted successfully',
+        };
+    }
+
+    @Get('approval-history')
+    @UseGuards(JwtAuthGuard)
+    async getApprovalHistory(@Query() query: SdsApprovalHistoryQueryDto) {
+        const result = await this.sampleDataSheetService.getApprovalHistory(query);
         return {
             success: true,
             data: result,

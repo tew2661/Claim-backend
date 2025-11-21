@@ -8,6 +8,7 @@ export interface ListInspectionDetailsQueryDto {
     status?: string;
     skip?: number;
     limit?: number;
+    checkerLevel?: 1 | 2 | 3;
 }
 
 export interface InspectionDetailListItem {
@@ -24,6 +25,13 @@ export interface InspectionDetailListItem {
     dueDate?: string | null;
     hasDelay: boolean;
     sdsCreated: boolean;
+    checker1Approved: boolean;
+    checker1Rejected: boolean;
+    checker2Approved: boolean;
+    checker2Rejected: boolean;
+    checker3Approved: boolean;
+    checker3Rejected: boolean;
+    hasAnyRejection: boolean;
 }
 
 export interface InspectionDetailListResponse {

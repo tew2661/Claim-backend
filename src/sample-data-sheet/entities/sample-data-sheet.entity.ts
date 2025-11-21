@@ -59,6 +59,9 @@ export class SampleDataSheetEntity {
     @OneToMany(() => SampleDataSheetRowEntity, row => row.sampleDataSheet, { cascade: true })
     rows: SampleDataSheetRowEntity[];
 
+    @Column({ name: 'loop', type: 'int', nullable: false, default: 1 })
+    loop: number;
+
     @Column({ name: 'remark', type: 'nvarchar', length: 1000, nullable: true })
     remark: string;
 }
