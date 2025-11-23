@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class VarcharToNvarchar1750600000000 implements MigrationInterface {
-    name = 'VarcharToNvarchar1750600000000'
+export class VarcharToNvarchar1800000000004 implements MigrationInterface {
+    name = 'VarcharToNvarchar1800000000004'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS IDX_sds_inspection_detail_supplier_code ON [dbo].[sds_inspection_detail]`);

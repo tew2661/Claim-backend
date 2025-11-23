@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddRemarkToSampleDataSheet1771000000000 implements MigrationInterface {
+export class AddRemarkToSampleDataSheet1800000000009 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.addColumn(
             'dbo.sample_data_sheets',

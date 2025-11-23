@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddLoopColumnToSampleDataSheetTables1732176000000 implements MigrationInterface {
-    name = 'AddLoopColumnToSampleDataSheetTables1732176000000'
+export class AddLoopColumnToSampleDataSheetTables1800000000011 implements MigrationInterface {
+    name = 'AddLoopColumnToSampleDataSheetTables1800000000011'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add loop column to sample_data_sheets table

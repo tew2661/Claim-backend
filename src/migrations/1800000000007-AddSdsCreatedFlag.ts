@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddSdsCreatedFlag1769000000000 implements MigrationInterface {
+export class AddSdsCreatedFlag1800000000007 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.addColumn(
             'dbo.sds_inspection_detail',

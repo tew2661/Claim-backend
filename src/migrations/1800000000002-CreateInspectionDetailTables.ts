@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from "typeorm";
 
-export class CreateInspectionDetailTables1763268350000 implements MigrationInterface {
+export class CreateInspectionDetailTables1800000000002 implements MigrationInterface {
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Create sds_inspection_detail table

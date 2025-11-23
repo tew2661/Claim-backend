@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
 
-export class AddInspectionDetailIdToSdsLog1732357000000 implements MigrationInterface {
+export class AddInspectionDetailIdToSdsLog1800000000015 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.addColumn(
             'sds_log',

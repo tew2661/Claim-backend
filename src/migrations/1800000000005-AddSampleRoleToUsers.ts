@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddSampleRoleToUsers1750700000000 implements MigrationInterface {
-    name = 'AddSampleRoleToUsers1750700000000'
+export class AddSampleRoleToUsers1800000000005 implements MigrationInterface {
+    name = 'AddSampleRoleToUsers1800000000005'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`ALTER TABLE [dbo].[users] ADD [sampleDataSheetRole] nvarchar(255) NOT NULL CONSTRAINT DF_users_sample_data_sheet_role DEFAULT (N'')`);

@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn, TableForeignKey } from 'typeorm';
 
-export class AddInspectionDetailRefToSampleDataSheet1770000000000 implements MigrationInterface {
+export class AddInspectionDetailRefToSampleDataSheet1800000000008 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.addColumn(
             'dbo.sample_data_sheets',
