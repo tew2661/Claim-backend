@@ -267,6 +267,24 @@ export class SampleDataSheetController {
         };
     }
 
+    @Get('inspection-details-delay')
+    @UseGuards(JwtAuthGuard)
+    async listInspectionDetailsDelay(
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Query() query: ListInspectionDetailsQueryDto,
+    ) {
+        const supplierCode = actionBy?.role === 'Supplier'
+            ? actionBy?.supplier?.supplierCode
+            : undefined;
+        // Force hasDelay filter to true
+        const delayQuery = { ...query, hasDelay: true };
+        const result = await this.sampleDataSheetService.listInspectionDetails(delayQuery, supplierCode);
+        return {
+            success: true,
+            data: result,
+        };
+    }
+
     @Post('sds-approval')
     @UseGuards(JwtAuthGuard)
     async submitSdsApproval(

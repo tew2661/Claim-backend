@@ -246,7 +246,20 @@ export class SampleDataSheetService {
                 l2_sds.action AS checker2ApprovedSds,
                 l3_sdr.action AS checker3ApprovedSdr,
                 l3_sds.action AS checker3ApprovedSds,
-                la_sds.action_date AS submitted
+                la_sds.action_date AS submitted,
+                CASE 
+                    WHEN sheet.sdr_date IS NOT NULL THEN 
+                        CASE 
+                            WHEN sheet.sdr_date < (
+                                CASE 
+                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
+                                    ELSE GETDATE()
+                                END
+                            ) THEN 1
+                            ELSE 0
+                        END
+                    ELSE 0
+                END AS has_delay
             FROM dbo.sds_inspection_detail detail
             LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
             LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
@@ -367,6 +380,25 @@ export class SampleDataSheetService {
             }
         }
 
+        if (filters.hasDelay) {
+            querys += ` AND (
+                CASE 
+                    WHEN sheet.sdr_date IS NOT NULL THEN 
+                        CASE 
+                            WHEN sheet.sdr_date < (
+                                CASE 
+                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
+                                    ELSE GETDATE()
+                                END
+                            ) THEN 1
+                            ELSE 0
+                        END
+                    ELSE 0
+                END
+            ) = 1`;
+            querys += ` AND la_sds.action_date IS NULL`;
+        }
+
         query += querys;
         query += ` ORDER BY detail.created_at DESC`;
         query += ` OFFSET ${skip} ROWS FETCH NEXT ${limit} ROWS ONLY`;
@@ -374,9 +406,29 @@ export class SampleDataSheetService {
 
         // Get total count
         let countQuery = `
+            WITH latest_approved AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Approved'
+            )
             SELECT COUNT(*) as total
             FROM dbo.sds_inspection_detail detail
             INNER JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            LEFT JOIN latest_approved la_sds
+                ON la_sds.sample_data_sheet_id = sheet.id
+               AND la_sds.loop = sheet.loop
+               AND la_sds.document_type = 'SDS'
+               AND la_sds.role = 'Approver'
+               AND la_sds.rn = 1
             WHERE detail.active_row = 'Y'
             AND detail.sds_created = 1
         `;
@@ -469,11 +521,7 @@ export class SampleDataSheetService {
                 ? this.formatMonthYear(dueDate)
                 : this.formatMonthYear(new Date(row.created_at));
             const sdsType: 'Special' | 'Normal' = row.special_id ? 'Special' : 'Normal';
-            const now = this.startOfDay(row.Submitted ? row.Submitted : new Date());
-            const hasDelay = dueDate ? this.startOfDay(dueDate).getTime() < now.getTime() : false;
 
-
-            console.log(dueDate, this.formatDayMonthYear(dueDate));
             return {
                 ...row,
                 supplierCode: row.supplier_code,
@@ -490,7 +538,8 @@ export class SampleDataSheetService {
                 checker2Status,
                 checker3Status,
                 dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
-                hasDelay,
+                hasDelay: row.has_delay,
+                delayDays: row.has_delay ? Math.ceil((this.startOfDay( row.Submitted ?  row.Submitted : new Date()).getTime() - this.startOfDay(dueDate).getTime()) / (1000 * 60 * 60 * 24)) : 0,
                 sdsCreated: row.sds_created,
                 adsStatus: checker3Status,
                 checker1Approved,
@@ -954,7 +1003,7 @@ export class SampleDataSheetService {
                 sdsMonthYear: sdsMonthYear,
             });
 
-             if (sdsAction === SdsApprovalAction.REJECTED) {
+            if (sdsAction === SdsApprovalAction.REJECTED) {
                 sheet.sdrDate = reSubmitDate ?? sheet.sdrDate;
                 await this.sheetRepo.save(sheet);
             }

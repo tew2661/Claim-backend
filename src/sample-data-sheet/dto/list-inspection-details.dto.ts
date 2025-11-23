@@ -9,6 +9,7 @@ export interface ListInspectionDetailsQueryDto {
     skip?: number;
     limit?: number;
     checkerLevel?: 1 | 2 | 3;
+    hasDelay?: boolean;
 }
 
 export interface InspectionDetailListItem {
