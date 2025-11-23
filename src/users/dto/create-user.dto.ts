@@ -14,6 +14,10 @@ export class CreateUserDto {
   @IsString()
   role: string;
 
+  @IsOptional()
+  @IsString()
+  sampleDataSheetRole?: string;
+
   @IsEmail()
   email: string;
 

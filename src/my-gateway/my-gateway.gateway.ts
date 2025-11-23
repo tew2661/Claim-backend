@@ -22,10 +22,12 @@ export class MyGatewayGateway {
     const port: string = process.env.NEST_REDIS_PORT ? process.env.NEST_REDIS_PORT : ''
     const pass: string = process.env.NEST_REDIS_PASSWORD ? process.env.NEST_REDIS_PASSWORD : ''
     const username: string = process.env.NEST_REDIS_USER ? process.env.NEST_REDIS_USER : ''
-
+    const database: number = process.env.NEST_REDIS_DATABASE ? parseInt(process.env.NEST_REDIS_DATABASE) : 0
+ 
     const pubClient = createClient({ 
       url: `redis://${host}:${port}` ,
       password: pass, // ใส่ Password
+      database: database, // เลือก database จาก env
     });
     const subClient = pubClient.duplicate();
 

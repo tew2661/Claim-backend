@@ -12,11 +12,12 @@ import { UsersEntity } from 'src/users/entities/users.entity';
   providers: [SupplierService],
   imports: [
     TypeOrmModule.forFeature([
-      SupplierEntity , 
-      UsersEntity
+      SupplierEntity,
+      UsersEntity,
     ]),
     forwardRef(() => AuthModule),
-    UsersModule
-  ]
+    UsersModule,
+  ],
+  exports: [SupplierService],
 })
 export class SupplierModule {}

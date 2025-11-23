@@ -1,0 +1,23 @@
+# ใช้ Node.js เวอร์ชันเต็มสำหรับ Development
+FROM node:18-alpine
+
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Bangkok /etc/localtime \
+    && echo "Asia/Bangkok" > /etc/timezone
+
+WORKDIR /app
+
+# คัดลอก package.json และ lockfile เพื่อ install dependencies
+COPY package.json package-lock.json* yarn.lock* ./
+
+# ติดตั้ง Dependencies สำหรับ Development
+RUN npm install
+
+# คัดลอกไฟล์ทั้งหมดของโปรเจค (ยกเว้น `node_modules` ที่จะใช้จาก Container)
+COPY . .
+
+# กำหนดให้ Next.js ใช้ Hot Reload
+EXPOSE 3000
+
+# ใช้ Environment Variable ใน Runtime
+CMD ["npm", "run", "start:dev"]

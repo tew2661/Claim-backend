@@ -33,5 +33,6 @@ async function bootstrap() {
 
   // app.use(cookieParser());
   await app.listen(process.env.NEST_PORT ?? 3000);
+  console.log('port run on : ' + (process.env.NEST_PORT ?? 3000));
 }
 bootstrap();

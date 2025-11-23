@@ -122,6 +122,7 @@ export class UsersService {
             active: ActiveStatus.YES,
             expiresPassword: listPasswordc ? undefined : moment().add(3, 'M').toDate(),
             image: (imageFilename) ? (`${configPath.pathFileUser}/${imageFilename}`) : null,
+            sampleDataSheetRole: createUserDto.sampleDataSheetRole || '',
         };
 
         const newUser = this.usersRepository.create(createUser);
@@ -207,6 +208,10 @@ export class UsersService {
 
         if (updateUserDto.role) {
             fieldUpdate.role = updateUserDto.role
+        }
+
+        if (updateUserDto.sampleDataSheetRole !== undefined) {
+            fieldUpdate.sampleDataSheetRole = updateUserDto.sampleDataSheetRole || '';
         }
 
         if (updateUserDto.email) {

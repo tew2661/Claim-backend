@@ -51,6 +51,9 @@ export class UsersEntity {
     @Column({ nullable: true })
     expiresPassword: Date;
 
+    @Column({ type: 'nvarchar', length: 255, nullable: true, default: '' })
+    sampleDataSheetRole: string;
+
     @Column({ type: 'nvarchar', name: '_activeRow', length: 1, nullable: false, default: ActiveStatus.YES })
     activeRow: string;
 
