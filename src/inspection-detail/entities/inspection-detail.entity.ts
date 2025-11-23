@@ -13,6 +13,7 @@ import {
     JoinColumn
 } from 'typeorm';
 import { InspectionItemEntity } from './inspection-item.entity';
+import { InspectionSpecialRequestEntity } from './inspection-special-request.entity';
 
 export enum ActiveStatus {
     YES = 'Y',
@@ -120,4 +121,7 @@ export class InspectionDetailEntity {
 
     @OneToMany(() => InspectionItemEntity, (item: InspectionItemEntity) => item.inspectionDetail, { cascade: true })
     inspectionItems: InspectionItemEntity[];
+
+    @OneToMany(() => InspectionSpecialRequestEntity, (s: InspectionSpecialRequestEntity) => s.inspectionDetail, { cascade: true })
+    specialRequest: InspectionSpecialRequestEntity[];
 }

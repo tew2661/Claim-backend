@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import { SampleDataSheetEntity } from './entities/sample-data-sheet.entity';
 import { SampleDataSheetRowEntity } from './entities/sample-data-sheet-row.entity';
 import { SampleDataSheetApprovalEntity, SdsApprovalAction, SdsApprovalRole, SdsDocumentType } from './entities/sample-data-sheet-approval.entity';
+import { SdsLogEntity } from './entities/sds-log.entity';
 import { CreateSampleDataSheetDto, CreateSampleDataSheetRowDto } from './dto/create-sample-data-sheet.dto';
 import {
     SampleDataSheetResponse,
@@ -65,6 +66,8 @@ export class SampleDataSheetService {
         private readonly inspectionRepo: Repository<InspectionDetailEntity>,
         @InjectRepository(InspectionSpecialRequestEntity)
         private readonly specialRequestRepo: Repository<InspectionSpecialRequestEntity>,
+        @InjectRepository(SdsLogEntity)
+        private readonly sdsLogRepo: Repository<SdsLogEntity>,
         @InjectDataSource()
         private readonly dataSource: DataSource,
     ) { }
@@ -72,6 +75,7 @@ export class SampleDataSheetService {
     async create(
         dto: CreateSampleDataSheetDto,
         files: { aisFile?: string; sdrFile?: string; sdrReportFile?: string },
+        currentUser?: UsersEntity,
     ): Promise<SampleDataSheetResponse> {
         const inspectionDetail = await this.inspectionRepo.findOne({ where: { id: dto.inspectionDetailId } });
         if (!inspectionDetail) {
@@ -101,6 +105,20 @@ export class SampleDataSheetService {
 
         await this.inspectionRepo.update({ id: dto.inspectionDetailId }, { sdsCreated: true });
 
+        // Create log for SDS creation
+        const sdsMonthYear = moment(savedSheet.sdrDate).format('MM-YYYY');
+        await this.sdsLogRepo.save({
+            menu: 'Create SDS',
+            sdsInspectionDetailId: dto.inspectionDetailId,
+            partNo: savedSheet.partNo,
+            sdsMonthYear,
+            action: 'Submitted',
+            actionRole: 'Supplier',
+            actionBy: currentUser?.name || 'System',
+            actionDate: new Date(),
+            remark: dto.remark || null,
+        });
+
         return this.mapSheet(savedSheet);
     }
 
@@ -108,6 +126,7 @@ export class SampleDataSheetService {
         id: number,
         dto: CreateSampleDataSheetDto,
         files: { aisFile?: string; sdrFile?: string; sdrReportFile?: string },
+        currentUser?: UsersEntity,
     ): Promise<SampleDataSheetResponse> {
         const sheet = await this.sheetRepo.findOne({ where: { id } });
         if (!sheet) {
@@ -124,7 +143,7 @@ export class SampleDataSheetService {
         sheet.partName = dto.partName;
         sheet.model = dto.model;
         sheet.production082025 = dto.production08_2025;
-        sheet.sdrDate = new Date(dto.sdrDate);
+        sheet.sdrDate = moment(dto.sdrDate).toDate();
         sheet.inspectionDetailId = dto.inspectionDetailId;
         sheet.aisFile = inspectionDetail.aisFile ?? sheet.aisFile;
         sheet.sdrFile = inspectionDetail.sdrFile ?? sheet.sdrFile;
@@ -136,6 +155,7 @@ export class SampleDataSheetService {
         sheet.sdrReportFile = reportFile;
         sheet.remark = dto.remark;
 
+        console.log('Updating Sample Data Sheet:', sheet);
         const savedSheet = await this.sheetRepo.save(sheet);
 
         await this.rowRepo.delete({ sampleDataSheetId: savedSheet.id });
@@ -145,6 +165,20 @@ export class SampleDataSheetService {
         }
 
         await this.inspectionRepo.update({ id: dto.inspectionDetailId }, { sdsCreated: true });
+
+        // Create log for SDS update
+        const sdsMonthYear = moment(savedSheet.sdrDate).format('MM-YYYY');
+        await this.sdsLogRepo.save({
+            menu: 'Create SDS',
+            sdsInspectionDetailId: dto.inspectionDetailId,
+            partNo: savedSheet.partNo,
+            sdsMonthYear,
+            action: 'Submitted',
+            actionRole: 'Supplier',
+            actionBy: currentUser?.name || 'System',
+            actionDate: new Date(),
+            remark: dto.remark || null,
+        });
 
         return this.mapSheet(savedSheet);
     }
@@ -158,93 +192,115 @@ export class SampleDataSheetService {
 
         const checkerLevel = filters.checkerLevel;
 
-        // Build optimized query with subqueries
+        // Build optimized query using CTEs to capture latest rejection and approval states
         let query = `
+            WITH rej AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY a.sample_data_sheet_id
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Rejected'
+                  AND a.re_submit_date IS NOT NULL
+            ),
+            latest AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+            ),
+            latest_approved AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Approved'
+            )
             SELECT
                 detail.*,
                 sheet.id as sheet_id,
                 sheet.loop as sheet_loop,
-                (
-                    SELECT TOP(1) sample_data_sheet_approvals.re_submit_date
-                    FROM sample_data_sheet_approvals 
-                    WHERE sample_data_sheet_approvals.sample_data_sheet_id = sheet.id
-                    AND sample_data_sheet_approvals.loop = sheet.loop
-                    --AND sample_data_sheet_approvals.document_type = 'SDR'
-                    --AND sample_data_sheet_approvals.role = 'Checker 1'
-                    AND sample_data_sheet_approvals.action = 'Rejected'
-                    AND sample_data_sheet_approvals.re_submit_date IS NOT NULL
-                    ORDER BY sample_data_sheet_approvals.id DESC
-                ) as due_date,
-                (
-                    SELECT TOP(1) sds_inspection_special_request.due_date
-                    FROM sds_inspection_special_request 
-                    WHERE sds_inspection_special_request.inspection_detail_id = sheet.inspection_detail_id
-                    ORDER BY sds_inspection_special_request.id DESC
-                ) as due_date_special,
-                (
-                    SELECT TOP(1) sr.id
-                    FROM dbo.sds_inspection_special_request sr
-                    WHERE sr.inspection_detail_id = sheet.inspection_detail_id
-                    ORDER BY sr.id DESC
-                ) as special_id,
-                (
-                    SELECT TOP(1) app.action
-                    FROM dbo.sample_data_sheet_approvals app
-                    WHERE app.sample_data_sheet_id = sheet.id
-                    AND app.loop = sheet.loop
-                    AND app.document_type = 'SDR'
-                    AND app.role = 'Checker 1'
-                    ORDER BY app.id DESC
-                ) as checker1ApprovedSdr,
-                (
-                    SELECT TOP(1) app.action
-                    FROM dbo.sample_data_sheet_approvals app
-                    WHERE app.sample_data_sheet_id = sheet.id
-                    AND app.loop = sheet.loop
-                    AND app.document_type = 'SDS'
-                    AND app.role = 'Checker 1'
-                    ORDER BY app.id DESC
-                ) as checker1ApprovedSds,
-                (
-                    SELECT TOP(1) app.action
-                    FROM dbo.sample_data_sheet_approvals app
-                    WHERE app.sample_data_sheet_id = sheet.id
-                    AND app.loop = sheet.loop
-                    AND app.document_type = 'SDR'
-                    AND app.role = 'Checker 2'
-                    ORDER BY app.id DESC
-                ) as checker2ApprovedSdr,
-                (
-                    SELECT TOP(1) app.action
-                    FROM dbo.sample_data_sheet_approvals app
-                    WHERE app.sample_data_sheet_id = sheet.id
-                    AND app.loop = sheet.loop
-                    AND app.document_type = 'SDS'
-                    AND app.role = 'Checker 2'
-                    ORDER BY app.id DESC
-                ) as checker2ApprovedSds,
-                (
-                    SELECT TOP(1) app.action
-                    FROM dbo.sample_data_sheet_approvals app
-                    WHERE app.sample_data_sheet_id = sheet.id
-                    AND app.loop = sheet.loop
-                    AND app.document_type = 'SDR'
-                    AND app.role = 'Approver'
-                    ORDER BY app.id DESC
-                ) as checker3ApprovedSdr,
-                (
-                    SELECT TOP(1) app.action
-                    FROM dbo.sample_data_sheet_approvals app
-                    WHERE app.sample_data_sheet_id = sheet.id
-                    AND app.loop = sheet.loop
-                    AND app.document_type = 'SDS'
-                    AND app.role = 'Approver'
-                    ORDER BY app.id DESC
-                ) as checker3ApprovedSds
+                --ISNULL(r.re_submit_date, sheet.sdr_date) AS due_date,
+                sheet.sdr_date AS due_date,
+                sp.due_date AS due_date_special,
+                sp.id AS special_id,
+                l1_sdr.action AS checker1ApprovedSdr,
+                l1_sds.action AS checker1ApprovedSds,
+                l2_sdr.action AS checker2ApprovedSdr,
+                l2_sds.action AS checker2ApprovedSds,
+                l3_sdr.action AS checker3ApprovedSdr,
+                l3_sds.action AS checker3ApprovedSds,
+                la_sds.action_date AS submitted
             FROM dbo.sds_inspection_detail detail
-            INNER JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
+            LEFT JOIN dbo.sds_inspection_special_request sp
+                ON sp.inspection_detail_id = detail.id
+               AND sp.id = (
+                    SELECT MAX(id)
+                    FROM dbo.sds_inspection_special_request
+                    WHERE inspection_detail_id = detail.id
+                )
+            LEFT JOIN latest l1_sdr
+                ON l1_sdr.sample_data_sheet_id = sheet.id
+               AND l1_sdr.loop = sheet.loop
+               AND l1_sdr.document_type = 'SDR'
+               AND l1_sdr.role = 'Checker 1'
+               AND l1_sdr.rn = 1
+            LEFT JOIN latest l1_sds
+                ON l1_sds.sample_data_sheet_id = sheet.id
+               AND l1_sds.loop = sheet.loop
+               AND l1_sds.document_type = 'SDS'
+               AND l1_sds.role = 'Checker 1'
+               AND l1_sds.rn = 1
+            LEFT JOIN latest l2_sdr
+                ON l2_sdr.sample_data_sheet_id = sheet.id
+               AND l2_sdr.loop = sheet.loop
+               AND l2_sdr.document_type = 'SDR'
+               AND l2_sdr.role = 'Checker 2'
+               AND l2_sdr.rn = 1
+            LEFT JOIN latest l2_sds
+                ON l2_sds.sample_data_sheet_id = sheet.id
+               AND l2_sds.loop = sheet.loop
+               AND l2_sds.document_type = 'SDS'
+               AND l2_sds.role = 'Checker 2'
+               AND l2_sds.rn = 1
+            LEFT JOIN latest l3_sdr
+                ON l3_sdr.sample_data_sheet_id = sheet.id
+               AND l3_sdr.loop = sheet.loop
+               AND l3_sdr.document_type = 'SDR'
+               AND l3_sdr.role = 'Approver'
+               AND l3_sdr.rn = 1
+            LEFT JOIN latest l3_sds
+                ON l3_sds.sample_data_sheet_id = sheet.id
+               AND l3_sds.loop = sheet.loop
+               AND l3_sds.document_type = 'SDS'
+               AND l3_sds.role = 'Approver'
+               AND l3_sds.rn = 1
+            LEFT JOIN latest_approved la_sds
+                ON la_sds.sample_data_sheet_id = sheet.id
+               AND la_sds.loop = sheet.loop
+               AND la_sds.document_type = 'SDS'
+               AND la_sds.role = 'Approver'
+               AND la_sds.rn = 1
             WHERE detail.active_row = 'Y'
-            AND detail.sds_created = 1
+            
         `;
 
         const filterParams: any[] = [];
@@ -252,9 +308,12 @@ export class SampleDataSheetService {
         let querys = '';
 
         if (supplierCode) {
+            querys += ` AND detail.part_status = 'Active' AND supplier_edit_status = 'Locked'`;
             querys += ` AND detail.supplier_code = @${paramIndex}`;
             filterParams.push(supplierCode);
             paramIndex++;
+        } else {
+            querys += ` AND detail.sds_created = 1 `;
         }
 
         if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
@@ -285,7 +344,7 @@ export class SampleDataSheetService {
             const monthYear = filters.monthYear.split('-');
             const month = parseInt(monthYear[0], 10);
             const year = parseInt(monthYear[1], 10);
-            querys += ` AND MONTH(sheet.sdr_date) = @${paramIndex} AND YEAR(sheet.sdr_date) = @${paramIndex + 1}`;
+            querys += ` AND (MONTH(sheet.sdr_date) = @${paramIndex} AND YEAR(sheet.sdr_date) = @${paramIndex + 1} OR sheet.sdr_date IS NULL)`;
             filterParams.push(month, year);
             paramIndex += 2;
         }
@@ -331,8 +390,7 @@ export class SampleDataSheetService {
             return { total: 0, items: [] };
         }
 
-        const now = this.startOfDay(new Date());
-        // Process results
+
         const rows: InspectionDetailListItem[] = rawResults.map((row, index) => {
 
             const checker1Approved = row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved';
@@ -342,11 +400,13 @@ export class SampleDataSheetService {
             const checker3Approved = row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved';
             const checker3Rejected = row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected';
             let supplierStatus = 'Pending';
-            if ((row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') &&
+            if (!row.sds_created) {
+                supplierStatus = 'Pending';
+            } else if ((row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') &&
                 (row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved') &&
                 (row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved')
             ) {
-                supplierStatus = 'Approved';
+                supplierStatus = 'Submitted';
             } else if ((row.checker1ApprovedSdr === 'Rejected' || row.checker1ApprovedSds === 'Rejected') ||
                 (row.checker2ApprovedSdr === 'Rejected' || row.checker2ApprovedSds === 'Rejected') ||
                 (row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected')
@@ -357,43 +417,63 @@ export class SampleDataSheetService {
             }
 
             let checker1Status = 'Pending';
-            if (row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') {
+            if (supplierStatus == 'Pending') {
+                checker1Status = 'Supplier Pending';
+            } else if ((row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') &&
+                (row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved') &&
+                (row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved')
+            ) {
+                checker1Status = 'Completed';
+            } else if (row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') {
                 checker1Status = 'Approved';
             } else if (row.checker1ApprovedSdr === 'Rejected' || row.checker1ApprovedSds === 'Rejected') {
                 checker1Status = 'Rejected';
             }
 
             let checker2Status = 'Pending';
-            if (row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved') {
-                checker2Status = 'Approved';
-            } else if (row.checker2ApprovedSdr === 'Rejected' || row.checker2ApprovedSds === 'Rejected') {
-                checker2Status = 'Rejected';
+            if (checker1Status === 'Completed') {
+                checker2Status = 'Completed';
+            } else if (supplierStatus == 'Pending') {
+                checker2Status = 'Supplier Pending';
             } else if (checker1Status === 'Pending') {
                 checker2Status = 'Wait for Checker 1 Approve';
             } else if (checker1Status === 'Rejected') {
                 checker2Status = 'Rejected';
+            } else if (row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved') {
+                checker2Status = 'Approved';
+            } else if (row.checker2ApprovedSdr === 'Rejected' || row.checker2ApprovedSds === 'Rejected') {
+                checker2Status = 'Rejected';
             }
 
             let checker3Status = 'Pending';
-            if (row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved') {
-                checker3Status = 'Approved';
-            } else if (row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected') {
-                checker3Status = 'Rejected';
+            if (checker2Status === 'Completed') {
+                checker3Status = 'Completed';
+            } else if (supplierStatus == 'Pending') {
+                checker3Status = 'Supplier Pending';
+            } else if (checker2Status === 'Wait for Checker 1 Approve') {
+                checker3Status = 'Wait for Checker 1 Approve';
             } else if (checker2Status === 'Pending') {
                 checker3Status = 'Wait for Checker 2 Approve';
             } else if (checker2Status === 'Rejected') {
+                checker3Status = 'Rejected';
+            } else if (row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved') {
+                checker3Status = 'Approved';
+            } else if (row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected') {
                 checker3Status = 'Rejected';
             }
 
             const hasAnyRejection = checker1Rejected || checker2Rejected || checker3Rejected;
 
-            const dueDate = row.due_date ? new Date(row.due_date) : (row.due_date_special ? new Date(row.due_date_special) : null);
+            const dueDate = row.due_date ? row.due_date : (row.due_date_special ? row.due_date_special : null);
             const monthYear = dueDate
                 ? this.formatMonthYear(dueDate)
                 : this.formatMonthYear(new Date(row.created_at));
             const sdsType: 'Special' | 'Normal' = row.special_id ? 'Special' : 'Normal';
+            const now = this.startOfDay(row.Submitted ? row.Submitted : new Date());
             const hasDelay = dueDate ? this.startOfDay(dueDate).getTime() < now.getTime() : false;
 
+
+            console.log(dueDate, this.formatDayMonthYear(dueDate));
             return {
                 ...row,
                 supplierCode: row.supplier_code,
@@ -412,6 +492,7 @@ export class SampleDataSheetService {
                 dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
                 hasDelay,
                 sdsCreated: row.sds_created,
+                adsStatus: checker3Status,
                 checker1Approved,
                 checker1Rejected,
                 checker2Approved,
@@ -419,6 +500,7 @@ export class SampleDataSheetService {
                 checker3Approved,
                 checker3Rejected,
                 hasAnyRejection,
+                submittedAt: row.Submitted,
             }
         })
 
@@ -429,16 +511,11 @@ export class SampleDataSheetService {
     }
 
     private formatMonthYear(value: Date): string {
-        const year = value.getFullYear();
-        const month = String(value.getMonth() + 1).padStart(2, '0');
-        return `${month}-${year}`;
+        return moment(value).format('MM-YYYY');
     }
 
     private formatDayMonthYear(value: Date): string {
-        const year = value.getFullYear();
-        const month = String(value.getMonth() + 1).padStart(2, '0');
-        const day = String(value.getDate()).padStart(2, '0');
-        return `${day}-${month}-${year}`;
+        return moment(value).format('DD-MM-YYYY');
     }
 
     private startOfDay(value: Date): Date {
@@ -451,18 +528,18 @@ export class SampleDataSheetService {
         return this.rowRepo.create({
             sampleDataSheetId: sheetId,
             no: Number(row.no ?? index + 1),
-            measuringItem: row.measuringItem,
-            specification: row.specification,
-            rank: row.rank,
-            inspectionInstrument: row.inspectionInstrument,
-            remark: row.remark ?? null,
-            sampleQty: row.sampleQty,
+            measuringItem: String(row.measuringItem),
+            specification: String(row.specification),
+            rank: String(row.rank),
+            inspectionInstrument: String(row.inspectionInstrument),
+            remark: row.remark ? String(row.remark) : null,
+            sampleQty: Number(row.sampleQty),
             samples: JSON.stringify(row.samples ?? []),
-            judgement: row.judgement ?? null,
-            xBar: row.xBar ?? null,
-            r: row.r ?? null,
-            cp: row.cp ?? null,
-            cpk: row.cpk ?? null,
+            judgement: row.judgement ? String(row.judgement) : null,
+            xBar: row.xBar ? String(row.xBar) : null,
+            r: row.r ? String(row.r) : null,
+            cp: row.cp ? String(row.cp) : null,
+            cpk: row.cpk ? String(row.cpk) : null,
         });
     }
 
@@ -473,18 +550,18 @@ export class SampleDataSheetService {
                 id: row.id,
                 sampleDataSheetId: row.sampleDataSheetId,
                 no: row.no,
-                measuringItem: row.measuringItem,
-                specification: row.specification,
-                rank: row.rank,
-                inspectionInstrument: row.inspectionInstrument,
-                remark: row.remark ?? null,
+                measuringItem: String(row.measuringItem || ''),
+                specification: String(row.specification || ''),
+                rank: String(row.rank || ''),
+                inspectionInstrument: String(row.inspectionInstrument || ''),
+                remark: row.remark ? String(row.remark) : null,
                 sampleQty: row.sampleQty,
                 samples,
-                judgement: row.judgement ?? null,
-                xBar: row.xBar ?? null,
-                r: row.r ?? null,
-                cp: row.cp ?? null,
-                cpk: row.cpk ?? null,
+                judgement: row.judgement ? String(row.judgement) : null,
+                xBar: row.xBar ? String(row.xBar) : null,
+                r: row.r ? String(row.r) : null,
+                cp: row.cp ? String(row.cp) : null,
+                cpk: row.cpk ? String(row.cpk) : null,
             };
         });
 
@@ -727,7 +804,7 @@ export class SampleDataSheetService {
                     if ((sampleIndex + 1) % 3 === 0 && sampleIndex !== 0) {
                         indexSample += 1;
                     }
-                    const simpleValue = (sample.value || '');
+                    const simpleValue = String(sample.value || '');
                     const textWidth = font.widthOfTextAtSize(simpleValue, fontSize);
                     page.drawText(simpleValue, {
                         x: sampleX - (textWidth / 2),
@@ -798,7 +875,8 @@ export class SampleDataSheetService {
             throw new NotFoundException('Sample Data Sheet not found');
         }
 
-        const reSubmitDate = dto.reSubmitDate ? new Date(dto.reSubmitDate) : null;
+        const reSubmitDateRaw = dto.reSubmitDate ? new Date(dto.reSubmitDate) : null;
+        const reSubmitDate = reSubmitDateRaw && !Number.isNaN(reSubmitDateRaw.getTime()) ? reSubmitDateRaw : null;
 
         // Get month-year from SDR date (e.g., "08-2025")
         const sdsMonthYear = moment(sheet.sdrDate).format('MM-YYYY');
@@ -829,12 +907,32 @@ export class SampleDataSheetService {
                 documentType: SdsDocumentType.SDR,
                 actionByUserId: actionByUser.id,
                 remark: dto.remark || null,
-                reSubmitDate: reSubmitDate,
+                reSubmitDate,
                 partNo: sheet.partNo,
                 sdsMonthYear: sdsMonthYear,
             });
 
+            if (sdrAction === SdsApprovalAction.REJECTED) {
+                sheet.sdrDate = reSubmitDate ?? sheet.sdrDate;
+                await this.sheetRepo.save(sheet);
+            }
+
             await this.approvalRepo.save(sdrApproval);
+
+            // Create log for SDR approval
+            const actionText = sdrAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+            const roleText = role.charAt(0).toUpperCase() + role.slice(1);
+            await this.sdsLogRepo.save({
+                menu: 'SDS Approval',
+                sdsInspectionDetailId: sheet.inspectionDetailId,
+                partNo: sheet.partNo,
+                sdsMonthYear,
+                action: actionText,
+                actionRole: roleText,
+                actionBy: actionByUser.name || 'Unknown',
+                actionDate: new Date(),
+                remark: ((dto.remark || '') + (`\n#${SdsDocumentType.SDR}`)).trim(),
+            });
         }
 
         // Save SDS approval log
@@ -856,7 +954,27 @@ export class SampleDataSheetService {
                 sdsMonthYear: sdsMonthYear,
             });
 
+             if (sdsAction === SdsApprovalAction.REJECTED) {
+                sheet.sdrDate = reSubmitDate ?? sheet.sdrDate;
+                await this.sheetRepo.save(sheet);
+            }
+
             await this.approvalRepo.save(sdsApproval);
+
+            // Create log for SDS approval
+            const actionText = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+            const roleText = role.charAt(0).toUpperCase() + role.slice(1);
+            await this.sdsLogRepo.save({
+                menu: 'SDS Approval',
+                sdsInspectionDetailId: sheet.inspectionDetailId,
+                partNo: sheet.partNo,
+                sdsMonthYear,
+                action: actionText,
+                actionRole: roleText,
+                actionBy: actionByUser.name || 'Unknown',
+                actionDate: new Date(),
+                remark: ((dto.remark || '') + (`\n#${SdsDocumentType.SDS}`)).trim(),
+            });
         }
     }
 

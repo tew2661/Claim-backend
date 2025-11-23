@@ -86,6 +86,7 @@ export class SampleDataSheetController {
             sdrFile?: Express.Multer.File[];
             sdrReport?: Express.Multer.File[];
         },
+        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
         if (!payload) {
             throw new BadRequestException('payload is required');
@@ -111,11 +112,15 @@ export class SampleDataSheetController {
             throw new BadRequestException('SDR report is required when production is Yes');
         }
 
-        const result = await this.sampleDataSheetService.create(parsed, {
-            aisFile: files?.aisFile?.[0]?.filename,
-            sdrFile: files?.sdrFile?.[0]?.filename,
-            sdrReportFile: files?.sdrReport?.[0]?.filename,
-        });
+        const result = await this.sampleDataSheetService.create(
+            parsed,
+            {
+                aisFile: files?.aisFile?.[0]?.filename,
+                sdrFile: files?.sdrFile?.[0]?.filename,
+                sdrReportFile: files?.sdrReport?.[0]?.filename,
+            },
+            actionBy,
+        );
 
         return {
             success: true,
@@ -202,6 +207,7 @@ export class SampleDataSheetController {
             sdrFile?: Express.Multer.File[];
             sdrReport?: Express.Multer.File[];
         },
+         @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
     ) {
         if (!payload) {
             throw new BadRequestException('payload is required');
@@ -228,11 +234,16 @@ export class SampleDataSheetController {
             throw new BadRequestException('Invalid sample data sheet id');
         }
 
-        const result = await this.sampleDataSheetService.update(numericId, parsed, {
-            aisFile: files?.aisFile?.[0]?.filename,
-            sdrFile: files?.sdrFile?.[0]?.filename,
-            sdrReportFile: files?.sdrReport?.[0]?.filename,
-        });
+        const result = await this.sampleDataSheetService.update(
+            numericId,
+            parsed,
+            {
+                aisFile: files?.aisFile?.[0]?.filename,
+                sdrFile: files?.sdrFile?.[0]?.filename,
+                sdrReportFile: files?.sdrReport?.[0]?.filename,
+            },
+            actionBy,
+        );
 
         return {
             success: true,

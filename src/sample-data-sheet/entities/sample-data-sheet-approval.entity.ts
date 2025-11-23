@@ -65,7 +65,7 @@ export class SampleDataSheetApprovalEntity {
     @Column({ name: 'remark', type: 'nvarchar', length: 1000, nullable: true })
     remark: string;
 
-    @Column({ name: 're_submit_date', type: 'date', nullable: true })
+    @Column({ name: 're_submit_date', type: 'datetime2', nullable: true })
     reSubmitDate: Date;
 
     @CreateDateColumn({ name: 'action_date', type: 'datetime2' })

@@ -8,6 +8,7 @@ import { InspectionSpecialRequestEntity } from './entities/inspection-special-re
 import { AuthModule } from 'src/auth/auth.module';
 import { UsersModule } from 'src/users/users.module';
 import { SupplierModule } from 'src/supplier/supplier.module';
+import { SampleDataSheetModule } from 'src/sample-data-sheet/sample-data-sheet.module';
 
 @Module({
   imports: [
@@ -15,8 +16,10 @@ import { SupplierModule } from 'src/supplier/supplier.module';
   forwardRef(() => AuthModule),
   forwardRef(() => UsersModule),
   forwardRef(() => SupplierModule),
+  forwardRef(() => SampleDataSheetModule),
   ],
   controllers: [InspectionDetailController],
   providers: [InspectionDetailService],
+  exports: [InspectionDetailService],
 })
 export class InspectionDetailModule {}

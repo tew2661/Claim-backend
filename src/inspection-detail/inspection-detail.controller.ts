@@ -47,7 +47,7 @@ const allowedFileTypes = ['application/pdf'];
 
 @Controller('inspection-detail')
 export class InspectionDetailController {
-  constructor(private readonly inspectionDetailService: InspectionDetailService) {}
+  constructor(private readonly inspectionDetailService: InspectionDetailService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -76,6 +76,7 @@ export class InspectionDetailController {
       aisFile?: Express.Multer.File[];
       sdrFile?: Express.Multer.File[];
     },
+    @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
   ) {
     if (!payload) {
       throw new BadRequestException('payload is required');
@@ -100,11 +101,17 @@ export class InspectionDetailController {
     parsedBody.aisFile = files?.aisFile?.[0]?.filename ?? null;
     parsedBody.sdrFile = files?.sdrFile?.[0]?.filename ?? null;
 
+    if (actionBy?.role === 'Supplier' && actionBy?.supplier?.supplierCode) {
+      parsedBody.supplierCode = actionBy?.supplier?.supplierCode;
+      parsedBody.supplierEditStatus = 'Locked';
+      parsedBody.partStatus = 'Inactive';
+    }
+
     if (!parsedBody.aisFile || !parsedBody.sdrFile) {
       throw new BadRequestException('AIS file and SDR file are required');
     }
 
-    const result = await this.inspectionDetailService.create(parsedBody);
+    const result = await this.inspectionDetailService.create(parsedBody, actionBy);
     return {
       success: true,
       data: result,
@@ -139,7 +146,7 @@ export class InspectionDetailController {
       aisFile?: Express.Multer.File[];
       sdrFile?: Express.Multer.File[];
     },
-    @Req() req: Request,
+    @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
   ) {
     if (!payload) {
       throw new BadRequestException('payload is required');
@@ -173,7 +180,12 @@ export class InspectionDetailController {
       parsedBody.sdrFile = files.sdrFile[0]?.filename ?? null;
     }
 
-  const actionBy = req.headers.actionBy as unknown as UsersEntity | undefined;
+    if (actionBy?.role === 'Supplier' && actionBy?.supplier?.supplierCode) {
+      parsedBody.supplierCode = actionBy?.supplier?.supplierCode;
+      parsedBody.supplierEditStatus = 'Locked';
+      parsedBody.partStatus = 'Inactive';
+    }
+
     const result = await this.inspectionDetailService.update(recordId, parsedBody, actionBy);
     return {
       success: true,
@@ -183,7 +195,10 @@ export class InspectionDetailController {
 
   @Post('special-request')
   @UseGuards(JwtAuthGuard)
-  async createSpecialRequest(@Body() body: CreateSpecialRequestDto, @Req() req: Request) {
+  async createSpecialRequest(
+    @Body() body: CreateSpecialRequestDto, 
+    @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
+  ) {
     if (!body) {
       throw new BadRequestException('special request data is required');
     }
@@ -196,14 +211,12 @@ export class InspectionDetailController {
       throw new BadRequestException('specialRequestItems must be provided');
     }
 
-    const actionBy = req.headers.actionBy as unknown as UsersEntity | undefined;
-
     const parsedDto = {
       ...body,
       dueDate: new Date(body.dueDate),
     };
 
-    const result = await this.inspectionDetailService.createSpecialRequest(parsedDto, actionBy?.id);
+    const result = await this.inspectionDetailService.createSpecialRequest(parsedDto, actionBy);
     return {
       success: true,
       data: result,
@@ -282,7 +295,7 @@ export class InspectionDetailController {
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(
-    @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+    @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
     @Query('page') page = '1',
     @Query('limit') limit = '10',
     @Query('supplierCode') supplierCode?: string,
@@ -319,11 +332,11 @@ export class InspectionDetailController {
   @Get('export')
   @UseGuards(JwtAuthGuard)
   async export(@Query('supplierCode') supplierCode?: string,
-               @Query('partNo') partNo?: string,
-               @Query('partName') partName?: string,
-               @Query('model') model?: string,
-               @Query('partStatus') partStatus?: string,
-               @Query('supplierEditStatus') supplierEditStatus?: string) {
+    @Query('partNo') partNo?: string,
+    @Query('partName') partName?: string,
+    @Query('model') model?: string,
+    @Query('partStatus') partStatus?: string,
+    @Query('supplierEditStatus') supplierEditStatus?: string) {
     const data = await this.inspectionDetailService.findAllForExport({
       supplierCode,
       partNo,

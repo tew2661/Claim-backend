@@ -38,7 +38,7 @@ export class SampleDataSheetEntity {
     @Column({ name: 'production_08_2025', type: 'nvarchar', length: 5 })
     production082025: 'Yes' | 'No';
 
-    @Column({ name: 'sdr_date', type: 'date' })
+    @Column({ name: 'sdr_date', type: 'datetime2' })
     sdrDate: Date;
 
     @Column({ name: 'ais_file', type: 'nvarchar', length: 500, nullable: true })

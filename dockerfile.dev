@@ -1,5 +1,9 @@
 # ใช้ Node.js เวอร์ชันเต็มสำหรับ Development
-FROM node:18
+FROM node:18-alpine
+
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Bangkok /etc/localtime \
+    && echo "Asia/Bangkok" > /etc/timezone
 
 WORKDIR /app
 

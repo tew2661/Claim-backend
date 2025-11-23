@@ -1,4 +1,3 @@
-import { InspectionDetailEntity, ActiveStatus } from './inspection-detail.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -10,6 +9,7 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
+import { InspectionDetailEntity, ActiveStatus } from './inspection-detail.entity';
 
 export enum SpecialRequestStatus {
   Pending = 'Pending',
@@ -46,8 +46,8 @@ export class InspectionSpecialRequestEntity {
   @Column({ name: 'comments', type: 'nvarchar', length: '1000', nullable: true })
   comments?: string;
 
-  @Column({ name: 'active_row', type: 'char', length: '1', default: ActiveStatus.YES })
-  activeRow: ActiveStatus;
+  @Column({ name: 'active_row', type: 'char', length: '1', default: 'Y' })
+  activeRow: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'datetime2' })
   createdAt: Date;

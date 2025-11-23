@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { InspectionDetailEntity, ActiveStatus, SupplierEditStatus } from './entities/inspection-detail.entity';
@@ -6,6 +6,7 @@ import { InspectionItemEntity } from './entities/inspection-item.entity';
 import { InspectionSpecialRequestEntity, SpecialRequestStatus } from './entities/inspection-special-request.entity';
 import { SupplierService } from 'src/supplier/supplier.service';
 import { UsersEntity } from 'src/users/entities/users.entity';
+import { SdsLogService } from 'src/sample-data-sheet/sds-log.service';
 
 export interface CreateInspectionItemDto {
   no: number;
@@ -64,9 +65,17 @@ export class InspectionDetailService {
     @InjectRepository(InspectionSpecialRequestEntity)
     private readonly specialRequestRepo: Repository<InspectionSpecialRequestEntity>,
     private readonly supplierService: SupplierService,
+    @Inject(forwardRef(() => SdsLogService))
+    private readonly sdsLogService: SdsLogService,
   ) {}
 
-  async create(dto: CreateInspectionDetailDto) {
+  async create(dto: CreateInspectionDetailDto, actionBy?: UsersEntity) {
+    // ถ้า partStatus เป็น Active ให้บังคับ supplierEditStatus เป็น Locked
+    let supplierEditStatus = dto.supplierEditStatus;
+    if (dto.partStatus === 'Active') {
+      supplierEditStatus = 'Locked';
+    }
+
     // สร้าง record หลัก
     const detail = this.inspectionDetailRepo.create({
       supplierCode: dto.supplierCode,
@@ -77,7 +86,7 @@ export class InspectionDetailService {
       aisFile: dto.aisFile ?? undefined,
       sdrFile: dto.sdrFile ?? undefined,
       partStatus: dto.partStatus as any,
-      supplierEditStatus: dto.supplierEditStatus as any,
+      supplierEditStatus: supplierEditStatus as any,
     });
 
     const savedDetail = await this.inspectionDetailRepo.save(detail);
@@ -99,6 +108,19 @@ export class InspectionDetailService {
       await this.inspectionItemRepo.save(items);
     }
 
+    // Create log for inspection detail creation
+    await this.sdsLogService.createLog({
+      menu: 'Inspection Detail',
+      sdsInspectionDetailId: savedDetail.id,
+      partNo: savedDetail.partNo,
+      sdsMonthYear: null,
+      action: 'Create',
+      actionRole: actionBy?.role || 'System',
+      actionBy: actionBy?.name || 'System',
+      actionDate: new Date(),
+      remark: null,
+    });
+
     return savedDetail;
   }
 
@@ -106,6 +128,8 @@ export class InspectionDetailService {
     const existing = await this.inspectionDetailRepo.findOne({
       where: { id, activeRow: ActiveStatus.YES },
     });
+
+    const clone = { ...existing}
 
     if (!existing) {
       throw new NotFoundException('Inspection detail not found');
@@ -133,7 +157,14 @@ export class InspectionDetailService {
     }
 
     existing.partStatus = dto.partStatus as any;
-    existing.supplierEditStatus = dto.supplierEditStatus as any;
+    
+    // ถ้า partStatus เป็น Active ให้บังคับ supplierEditStatus เป็น Locked
+    if (dto.partStatus === 'Active') {
+      existing.supplierEditStatus = SupplierEditStatus.Locked;
+    } else {
+      existing.supplierEditStatus = dto.supplierEditStatus as any;
+    }
+    
     existing.updatedBy = actionBy?.id;
 
   await this.inspectionDetailRepo.save(existing);
@@ -153,6 +184,50 @@ export class InspectionDetailService {
     );
     if (items.length) {
       await this.inspectionItemRepo.save(items);
+    }
+
+    // Create log for inspection detail update
+    await this.sdsLogService.createLog({
+      menu: 'Inspection Detail',
+      sdsInspectionDetailId: id,
+      partNo: existing.partNo,
+      sdsMonthYear: null,
+      action: 'Edit',
+      actionRole: actionBy?.role || 'System',
+      actionBy: actionBy?.name || 'System',
+      actionDate: new Date(),
+      remark: null,
+    });
+
+    // Only log status changes if not a Supplier
+    if (actionBy?.role !== 'Supplier') {
+      if (dto.supplierEditStatus !== clone.supplierEditStatus) {
+        await this.sdsLogService.createLog({
+          menu: 'Inspection Detail',
+          sdsInspectionDetailId: id,
+          partNo: existing.partNo,
+          sdsMonthYear: null,
+          action: dto.supplierEditStatus,
+          actionRole: actionBy?.role || 'System',
+          actionBy: actionBy?.name || 'System',
+          actionDate: new Date(),
+          remark: null,
+        });
+      }
+      
+      if (dto.partStatus !== clone.partStatus) {
+        await this.sdsLogService.createLog({
+          menu: 'Inspection Detail',
+          sdsInspectionDetailId: id,
+          partNo: existing.partNo,
+          sdsMonthYear: null,
+          action: dto.partStatus,
+          actionRole: actionBy?.role || 'System',
+          actionBy: actionBy?.name || 'System',
+          actionDate: new Date(),
+          remark: null,
+        });
+      }
     }
 
     return this.findById(id);
@@ -251,6 +326,7 @@ export class InspectionDetailService {
     const entity = await this.inspectionDetailRepo
       .createQueryBuilder('d')
       .leftJoinAndSelect('d.inspectionItems', 'items')
+      .leftJoinAndSelect('d.specialRequest', 'special')
       .where('d.id = :id', { id })
       .andWhere('d.activeRow = :active', { active: 'Y' })
       .getOne();
@@ -281,10 +357,21 @@ export class InspectionDetailService {
         inspectionInstrument: item.inspectionInstrument,
         rank: item.rank,
       })),
+      specialRequest: (entity.specialRequest || []).map((s) => ({
+        id: s.id,
+        inspectionDetailId: s.inspectionDetailId,
+        specialRequestItems: JSON.parse(s.specialRequestItems || '[]'),
+        qty: s.qty,
+        cpCpk: s.cpCpk,
+        dueDate: s.dueDate,
+        status: s.status,
+        comments: s.comments,
+        createdAt: s.createdAt,
+      })),
     };
   }
 
-  async createSpecialRequest(dto: CreateSpecialRequestDto, actionById?: number) {
+  async createSpecialRequest(dto: CreateSpecialRequestDto, actionBy?: UsersEntity) {
     const entity = this.specialRequestRepo.create({
       inspectionDetailId: dto.inspectionDetailId,
       specialRequestItems: JSON.stringify(dto.specialRequestItems || []),
@@ -294,11 +381,33 @@ export class InspectionDetailService {
       comments: dto.comments,
       status: dto.status ?? SpecialRequestStatus.Pending,
       activeRow: ActiveStatus.YES,
-      createdBy: actionById,
-      updatedBy: actionById,
+      createdBy: actionBy?.id,
+      updatedBy: actionBy?.id,
     });
 
-    return this.specialRequestRepo.save(entity);
+    const savedRequest = await this.specialRequestRepo.save(entity);
+
+    // Get inspection detail for part number
+    const inspectionDetail = await this.inspectionDetailRepo.findOne({
+      where: { id: dto.inspectionDetailId },
+    });
+
+    if (inspectionDetail) {
+      // Create log for special request
+      await this.sdsLogService.createLog({
+        menu: 'Inspection Detail',
+        sdsInspectionDetailId: inspectionDetail.id,
+        partNo: inspectionDetail.partNo,
+        sdsMonthYear: null,
+        action: 'Special Request',
+        actionRole: actionBy?.role || 'System',
+        actionBy: actionBy?.name || 'System',
+        actionDate: new Date(),
+        remark: dto.comments || null,
+      });
+    }
+
+    return savedRequest;
   }
 
   async listSpecialRequests(inspectionDetailId: number) {
