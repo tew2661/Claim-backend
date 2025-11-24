@@ -406,7 +406,31 @@ export class SampleDataSheetService {
 
         // Get total count
         let countQuery = `
-            WITH latest_approved AS (
+            WITH rej AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY a.sample_data_sheet_id
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Rejected'
+                  AND a.re_submit_date IS NOT NULL
+            ),
+            latest AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+            ),
+            latest_approved AS (
                 SELECT
                     a.*,
                     ROW_NUMBER() OVER (
@@ -420,9 +444,54 @@ export class SampleDataSheetService {
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
             )
-            SELECT COUNT(*) as total
+            SELECT
+                COUNT(*) AS total
             FROM dbo.sds_inspection_detail detail
-            INNER JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
+            LEFT JOIN dbo.sds_inspection_special_request sp
+                ON sp.inspection_detail_id = detail.id
+               AND sp.id = (
+                    SELECT MAX(id)
+                    FROM dbo.sds_inspection_special_request
+                    WHERE inspection_detail_id = detail.id
+                )
+            LEFT JOIN latest l1_sdr
+                ON l1_sdr.sample_data_sheet_id = sheet.id
+               AND l1_sdr.loop = sheet.loop
+               AND l1_sdr.document_type = 'SDR'
+               AND l1_sdr.role = 'Checker 1'
+               AND l1_sdr.rn = 1
+            LEFT JOIN latest l1_sds
+                ON l1_sds.sample_data_sheet_id = sheet.id
+               AND l1_sds.loop = sheet.loop
+               AND l1_sds.document_type = 'SDS'
+               AND l1_sds.role = 'Checker 1'
+               AND l1_sds.rn = 1
+            LEFT JOIN latest l2_sdr
+                ON l2_sdr.sample_data_sheet_id = sheet.id
+               AND l2_sdr.loop = sheet.loop
+               AND l2_sdr.document_type = 'SDR'
+               AND l2_sdr.role = 'Checker 2'
+               AND l2_sdr.rn = 1
+            LEFT JOIN latest l2_sds
+                ON l2_sds.sample_data_sheet_id = sheet.id
+               AND l2_sds.loop = sheet.loop
+               AND l2_sds.document_type = 'SDS'
+               AND l2_sds.role = 'Checker 2'
+               AND l2_sds.rn = 1
+            LEFT JOIN latest l3_sdr
+                ON l3_sdr.sample_data_sheet_id = sheet.id
+               AND l3_sdr.loop = sheet.loop
+               AND l3_sdr.document_type = 'SDR'
+               AND l3_sdr.role = 'Approver'
+               AND l3_sdr.rn = 1
+            LEFT JOIN latest l3_sds
+                ON l3_sds.sample_data_sheet_id = sheet.id
+               AND l3_sds.loop = sheet.loop
+               AND l3_sds.document_type = 'SDS'
+               AND l3_sds.role = 'Approver'
+               AND l3_sds.rn = 1
             LEFT JOIN latest_approved la_sds
                 ON la_sds.sample_data_sheet_id = sheet.id
                AND la_sds.loop = sheet.loop
@@ -430,7 +499,6 @@ export class SampleDataSheetService {
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
             WHERE detail.active_row = 'Y'
-            AND detail.sds_created = 1
         `;
 
         const rawResults = await this.dataSource.query(query, queryParams);
@@ -438,9 +506,9 @@ export class SampleDataSheetService {
 
         const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
 
-        if (total === 0) {
-            return { total: 0, items: [] };
-        }
+        // if (total === 0) {
+        //     return { total: 0, items: [] };
+        // }
 
 
         const rows: InspectionDetailListItem[] = rawResults.map((row, index) => {
