@@ -326,7 +326,7 @@ export class SampleDataSheetService {
             filterParams.push(supplierCode);
             paramIndex++;
         } else {
-            querys += ` AND detail.sds_created = 1 `;
+            // querys += ` AND detail.sds_created = 1 `;
         }
 
         if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
