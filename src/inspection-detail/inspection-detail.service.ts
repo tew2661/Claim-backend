@@ -67,7 +67,7 @@ export class InspectionDetailService {
     private readonly supplierService: SupplierService,
     @Inject(forwardRef(() => SdsLogService))
     private readonly sdsLogService: SdsLogService,
-  ) {}
+  ) { }
 
   async create(dto: CreateInspectionDetailDto, actionBy?: UsersEntity) {
     // ถ้า partStatus เป็น Active ให้บังคับ supplierEditStatus เป็น Locked
@@ -75,6 +75,10 @@ export class InspectionDetailService {
     if (dto.partStatus === 'Active') {
       supplierEditStatus = 'Locked';
     }
+
+    // Calculate due date as 25th of current month
+    const now = new Date();
+    const dueDate = new Date(now.getFullYear(), now.getMonth(), 25);
 
     // สร้าง record หลัก
     const detail = this.inspectionDetailRepo.create({
@@ -87,6 +91,7 @@ export class InspectionDetailService {
       sdrFile: dto.sdrFile ?? undefined,
       partStatus: dto.partStatus as any,
       supplierEditStatus: supplierEditStatus as any,
+      dueDate,
     });
 
     const savedDetail = await this.inspectionDetailRepo.save(detail);
@@ -129,7 +134,7 @@ export class InspectionDetailService {
       where: { id, activeRow: ActiveStatus.YES },
     });
 
-    const clone = { ...existing}
+    const clone = { ...existing }
 
     if (!existing) {
       throw new NotFoundException('Inspection detail not found');
@@ -157,17 +162,22 @@ export class InspectionDetailService {
     }
 
     existing.partStatus = dto.partStatus as any;
-    
+
     // ถ้า partStatus เป็น Active ให้บังคับ supplierEditStatus เป็น Locked
     if (dto.partStatus === 'Active') {
       existing.supplierEditStatus = SupplierEditStatus.Locked;
     } else {
       existing.supplierEditStatus = dto.supplierEditStatus as any;
     }
-    
-    existing.updatedBy = actionBy?.id;
 
-  await this.inspectionDetailRepo.save(existing);
+    // Set due date to 25th of current month
+    const now = new Date();
+    existing.dueDate = new Date(now.getFullYear(), now.getMonth(), 25);
+
+    existing.updatedBy = actionBy?.id;
+    existing.sdsCreated = false;
+
+    await this.inspectionDetailRepo.save(existing);
 
     await this.inspectionItemRepo.delete({ inspectionDetailId: id });
     const items = dto.inspectionItems.map((item, index) =>
@@ -214,7 +224,7 @@ export class InspectionDetailService {
           remark: null,
         });
       }
-      
+
       if (dto.partStatus !== clone.partStatus) {
         await this.sdsLogService.createLog({
           menu: 'Inspection Detail',
@@ -368,6 +378,7 @@ export class InspectionDetailService {
         comments: s.comments,
         createdAt: s.createdAt,
       })),
+      dueDate: entity.dueDate,
     };
   }
 

@@ -3,6 +3,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { SampleDataSheetEntity } from './entities/sample-data-sheet.entity';
 import { SampleDataSheetRowEntity } from './entities/sample-data-sheet-row.entity';
+import { SampleDataSheetRowSampleEntity } from './entities/sample-data-sheet-row-sample.entity';
 import { SampleDataSheetApprovalEntity, SdsApprovalAction, SdsApprovalRole, SdsDocumentType } from './entities/sample-data-sheet-approval.entity';
 import { SdsLogEntity } from './entities/sds-log.entity';
 import { CreateSampleDataSheetDto, CreateSampleDataSheetRowDto } from './dto/create-sample-data-sheet.dto';
@@ -11,8 +12,8 @@ import {
     SampleDataSheetRowResponse,
     SampleDataSheetSampleResponse,
 } from './interfaces/sample-data-sheet-response.interface';
-import { InspectionDetailEntity, ActiveStatus } from 'src/inspection-detail/entities/inspection-detail.entity';
-import { InspectionSpecialRequestEntity, SpecialRequestStatus } from 'src/inspection-detail/entities/inspection-special-request.entity';
+import { InspectionDetailEntity } from 'src/inspection-detail/entities/inspection-detail.entity';
+import { InspectionSpecialRequestEntity } from 'src/inspection-detail/entities/inspection-special-request.entity';
 import {
     InspectionDetailListItem,
     InspectionDetailListResponse,
@@ -60,6 +61,8 @@ export class SampleDataSheetService {
         private readonly sheetRepo: Repository<SampleDataSheetEntity>,
         @InjectRepository(SampleDataSheetRowEntity)
         private readonly rowRepo: Repository<SampleDataSheetRowEntity>,
+        @InjectRepository(SampleDataSheetRowSampleEntity)
+        private readonly sampleRepo: Repository<SampleDataSheetRowSampleEntity>,
         @InjectRepository(SampleDataSheetApprovalEntity)
         private readonly approvalRepo: Repository<SampleDataSheetApprovalEntity>,
         @InjectRepository(InspectionDetailEntity)
@@ -99,8 +102,10 @@ export class SampleDataSheetService {
         const savedSheet = await this.sheetRepo.save(sheet);
 
         if (dto.sdrData && dto.sdrData.length) {
-            const rows = dto.sdrData.map((row, index) => this.createRow(row, index, savedSheet.id));
-            await this.rowRepo.save(rows);
+            for (let index = 0; index < dto.sdrData.length; index++) {
+                const rowDto = dto.sdrData[index];
+                const row = await this.createRow(rowDto, index, savedSheet.id);
+            }
         }
 
         await this.inspectionRepo.update({ id: dto.inspectionDetailId }, { sdsCreated: true });
@@ -110,6 +115,7 @@ export class SampleDataSheetService {
         await this.sdsLogRepo.save({
             menu: 'Create SDS',
             sdsInspectionDetailId: dto.inspectionDetailId,
+            sampleDataSheetId: savedSheet.id,
             partNo: savedSheet.partNo,
             sdsMonthYear,
             action: 'Submitted',
@@ -160,8 +166,10 @@ export class SampleDataSheetService {
 
         await this.rowRepo.delete({ sampleDataSheetId: savedSheet.id });
         if (dto.sdrData && dto.sdrData.length) {
-            const rows = dto.sdrData.map((row, index) => this.createRow(row, index, savedSheet.id));
-            await this.rowRepo.save(rows);
+            for (let index = 0; index < dto.sdrData.length; index++) {
+                const rowDto = dto.sdrData[index];
+                const row = await this.createRow(rowDto, index, savedSheet.id);
+            }
         }
 
         await this.inspectionRepo.update({ id: dto.inspectionDetailId }, { sdsCreated: true });
@@ -171,6 +179,7 @@ export class SampleDataSheetService {
         await this.sdsLogRepo.save({
             menu: 'Create SDS',
             sdsInspectionDetailId: dto.inspectionDetailId,
+            sampleDataSheetId: savedSheet.id,
             partNo: savedSheet.partNo,
             sdsMonthYear,
             action: 'Submitted',
@@ -233,11 +242,26 @@ export class SampleDataSheetService {
                 WHERE a.action = 'Approved'
             )
             SELECT
-                detail.*,
+                detail.id,
+                detail.supplier_code,
+                detail.supplier_name,
+                detail.part_no,
+                detail.part_name,
+                detail.model,
+                detail.ais_file,
+                detail.sdr_file,
+                detail.part_status,
+                detail.supplier_edit_status,
+                detail.sds_created,
+                detail.active_row,
+                detail.created_at,
+                detail.updated_at,
+                detail.deleted_at,
+                detail.created_by,
+                detail.updated_by,
                 sheet.id as sheet_id,
                 sheet.loop as sheet_loop,
-                --ISNULL(r.re_submit_date, sheet.sdr_date) AS due_date,
-                sheet.sdr_date AS due_date,
+                ISNULL(sheet.sdr_date, detail.due_date) AS due_date,
                 sp.due_date AS due_date_special,
                 sp.id AS special_id,
                 l1_sdr.action AS checker1ApprovedSdr,
@@ -321,12 +345,13 @@ export class SampleDataSheetService {
         let querys = '';
 
         if (supplierCode) {
-            querys += ` AND detail.part_status = 'Active' AND supplier_edit_status = 'Locked'`;
+            if (filters.pageCreatedSds) {
+                querys += ` AND detail.part_status = 'Active' AND supplier_edit_status = 'Locked'`;
+            }
+
             querys += ` AND detail.supplier_code = @${paramIndex}`;
             filterParams.push(supplierCode);
             paramIndex++;
-        } else {
-            // querys += ` AND detail.sds_created = 1 `;
         }
 
         if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
@@ -520,7 +545,9 @@ export class SampleDataSheetService {
             const checker3Approved = row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved';
             const checker3Rejected = row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected';
             let supplierStatus = 'Pending';
-            if (!row.sds_created) {
+            if (row.part_status !== 'Active' && !checker1Approved && !checker1Rejected) {
+                supplierStatus = 'Wait for JATH Active Part';
+            } else if (!row.sds_created && !checker1Approved && !checker1Rejected) {
                 supplierStatus = 'Pending';
             } else if ((row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') &&
                 (row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved') &&
@@ -537,7 +564,7 @@ export class SampleDataSheetService {
             }
 
             let checker1Status = 'Pending';
-            if (supplierStatus == 'Pending') {
+            if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker1Status = 'Supplier Pending';
             } else if ((row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') &&
                 (row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved') &&
@@ -553,7 +580,7 @@ export class SampleDataSheetService {
             let checker2Status = 'Pending';
             if (checker1Status === 'Completed') {
                 checker2Status = 'Completed';
-            } else if (supplierStatus == 'Pending') {
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker2Status = 'Supplier Pending';
             } else if (checker1Status === 'Pending') {
                 checker2Status = 'Wait for Checker 1 Approve';
@@ -568,7 +595,7 @@ export class SampleDataSheetService {
             let checker3Status = 'Pending';
             if (checker2Status === 'Completed') {
                 checker3Status = 'Completed';
-            } else if (supplierStatus == 'Pending') {
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker3Status = 'Supplier Pending';
             } else if (checker2Status === 'Wait for Checker 1 Approve') {
                 checker3Status = 'Wait for Checker 1 Approve';
@@ -583,7 +610,6 @@ export class SampleDataSheetService {
             }
 
             const hasAnyRejection = checker1Rejected || checker2Rejected || checker3Rejected;
-
             const dueDate = row.due_date ? row.due_date : (row.due_date_special ? row.due_date_special : null);
             const monthYear = dueDate
                 ? this.formatMonthYear(dueDate)
@@ -607,7 +633,7 @@ export class SampleDataSheetService {
                 checker3Status,
                 dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
                 hasDelay: row.has_delay,
-                delayDays: row.has_delay ? Math.ceil((this.startOfDay( row.Submitted ?  row.Submitted : new Date()).getTime() - this.startOfDay(dueDate).getTime()) / (1000 * 60 * 60 * 24)) : 0,
+                delayDays: row.has_delay ? Math.ceil((this.startOfDay(row.Submitted ? row.Submitted : new Date()).getTime() - this.startOfDay(dueDate).getTime()) / (1000 * 60 * 60 * 24)) : 0,
                 sdsCreated: row.sds_created,
                 adsStatus: checker3Status,
                 checker1Approved,
@@ -618,6 +644,7 @@ export class SampleDataSheetService {
                 checker3Rejected,
                 hasAnyRejection,
                 submittedAt: row.Submitted,
+                canCreateSds: row.part_status === 'Active' && row.supplier_edit_status === 'Locked',
             }
         })
 
@@ -626,6 +653,705 @@ export class SampleDataSheetService {
             items: rows,
         };
     }
+
+    async listSampleDataSheets(
+        filters: ListInspectionDetailsQueryDto,
+        supplierCode?: string,
+    ): Promise<InspectionDetailListResponse> {
+        const skip = Number.isNaN(Number(filters.skip)) ? 0 : Number(filters.skip);
+        const limit = Number.isNaN(Number(filters.limit)) ? 10 : Number(filters.limit);
+
+        const checkerLevel = filters.checkerLevel;
+
+        // Build query using sample_data_sheets as primary table
+        let query = `
+            WITH rej AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY a.sample_data_sheet_id
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Rejected'
+                  AND a.re_submit_date IS NOT NULL
+            ),
+            latest AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+            ),
+            latest_approved AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Approved'
+            )
+            SELECT
+                sheet.id,
+                sheet.supplier,
+                sheet.part_no,
+                sheet.part_name,
+                sheet.model,
+                sheet.inspection_detail_id,
+                sheet.production_08_2025,
+                sheet.sdr_date,
+                sheet.ais_file,
+                sheet.sdr_file,
+                sheet.sdr_report_file,
+                sheet.created_at,
+                sheet.updated_at,
+                sheet.loop,
+                sheet.remark,
+                detail.part_status,
+                detail.supplier_edit_status,
+                detail.sds_created,
+                detail.supplier_code,
+                detail.supplier_name,
+                ISNULL(sheet.sdr_date, detail.due_date) AS due_date,
+                l1_sdr.action AS checker1ApprovedSdr,
+                l1_sds.action AS checker1ApprovedSds,
+                l2_sdr.action AS checker2ApprovedSdr,
+                l2_sds.action AS checker2ApprovedSds,
+                l3_sdr.action AS checker3ApprovedSdr,
+                l3_sds.action AS checker3ApprovedSds,
+                la_sds.action_date AS submitted,
+                sp.id AS special_id,
+                CASE 
+                    WHEN sheet.sdr_date IS NOT NULL THEN 
+                        CASE 
+                            WHEN sheet.sdr_date < (
+                                CASE 
+                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
+                                    ELSE GETDATE()
+                                END
+                            ) THEN 1
+                            ELSE 0
+                        END
+                    ELSE 0
+                END AS has_delay
+            FROM dbo.sample_data_sheets sheet
+            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
+            LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
+            LEFT JOIN dbo.sds_inspection_special_request sp
+                ON sp.inspection_detail_id = detail.id
+               AND sp.id = (
+                    SELECT MAX(id)
+                    FROM dbo.sds_inspection_special_request
+                    WHERE inspection_detail_id = detail.id
+                )
+            LEFT JOIN latest l1_sdr
+                ON l1_sdr.sample_data_sheet_id = sheet.id
+               AND l1_sdr.loop = sheet.loop
+               AND l1_sdr.document_type = 'SDR'
+               AND l1_sdr.role = 'Checker 1'
+               AND l1_sdr.rn = 1
+            LEFT JOIN latest l1_sds
+                ON l1_sds.sample_data_sheet_id = sheet.id
+               AND l1_sds.loop = sheet.loop
+               AND l1_sds.document_type = 'SDS'
+               AND l1_sds.role = 'Checker 1'
+               AND l1_sds.rn = 1
+            LEFT JOIN latest l2_sdr
+                ON l2_sdr.sample_data_sheet_id = sheet.id
+               AND l2_sdr.loop = sheet.loop
+               AND l2_sdr.document_type = 'SDR'
+               AND l2_sdr.role = 'Checker 2'
+               AND l2_sdr.rn = 1
+            LEFT JOIN latest l2_sds
+                ON l2_sds.sample_data_sheet_id = sheet.id
+               AND l2_sds.loop = sheet.loop
+               AND l2_sds.document_type = 'SDS'
+               AND l2_sds.role = 'Checker 2'
+               AND l2_sds.rn = 1
+            LEFT JOIN latest l3_sdr
+                ON l3_sdr.sample_data_sheet_id = sheet.id
+               AND l3_sdr.loop = sheet.loop
+               AND l3_sdr.document_type = 'SDR'
+               AND l3_sdr.role = 'Approver'
+               AND l3_sdr.rn = 1
+            LEFT JOIN latest l3_sds
+                ON l3_sds.sample_data_sheet_id = sheet.id
+               AND l3_sds.loop = sheet.loop
+               AND l3_sds.document_type = 'SDS'
+               AND l3_sds.role = 'Approver'
+               AND l3_sds.rn = 1
+            LEFT JOIN latest_approved la_sds
+                ON la_sds.sample_data_sheet_id = sheet.id
+               AND la_sds.loop = sheet.loop
+               AND la_sds.document_type = 'SDS'
+               AND la_sds.role = 'Approver'
+               AND la_sds.rn = 1
+            WHERE 1=1
+        `;
+
+        const filterParams: any[] = [];
+        let paramIndex = 0;
+        let querys = '';
+
+        if (supplierCode) {
+            querys += ` AND detail.supplier_code = @${paramIndex}`;
+            filterParams.push(supplierCode);
+            paramIndex++;
+        }
+
+        if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
+            querys += ` AND LOWER(sheet.part_no) LIKE LOWER(@${paramIndex})`;
+            filterParams.push(`%${filters.partNo}%`);
+            paramIndex++;
+        }
+
+        if (filters.partName && filters.partName.toLowerCase() !== 'all') {
+            querys += ` AND LOWER(sheet.part_name) LIKE LOWER(@${paramIndex})`;
+            filterParams.push(`%${filters.partName}%`);
+            paramIndex++;
+        }
+
+        if (filters.model && filters.model.toLowerCase() !== 'all') {
+            querys += ` AND LOWER(sheet.model) LIKE LOWER(@${paramIndex})`;
+            filterParams.push(`%${filters.model}%`);
+            paramIndex++;
+        }
+
+        if (filters.monthYear && filters.monthYear.toLowerCase() !== 'all') {
+            querys += ` AND FORMAT(sheet.sdr_date, 'MM-yyyy') = @${paramIndex}`;
+            filterParams.push(filters.monthYear);
+            paramIndex++;
+        }
+
+        if (filters.sdsType && filters.sdsType.toLowerCase() !== 'all') {
+            if (filters.sdsType.toLowerCase() === 'special') {
+                querys += ` AND EXISTS (
+                    SELECT 1
+                    FROM dbo.sds_inspection_special_request sr_filter
+                    WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                    -- ORDER BY sr_filter.id DESC
+                )`;
+            } else if (filters.sdsType.toLowerCase() === 'normal') {
+                querys += ` AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.sds_inspection_special_request sr_filter
+                    WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                    -- ORDER BY sr_filter.id DESC
+                )`;
+            }
+        }
+
+        query += querys;
+        query += ` ORDER BY sheet.created_at DESC`;
+        query += ` OFFSET ${skip} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+        const queryParams = [...filterParams];
+
+        // Get total count
+        let countQuery = `
+            SELECT COUNT(*) as total
+            FROM dbo.sample_data_sheets sheet
+            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id
+            WHERE 1=1
+        `;
+
+        const rawResults = await this.dataSource.query(query, queryParams);
+        const countResult = await this.dataSource.query(countQuery + querys, filterParams);
+
+        const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
+
+        const rows: InspectionDetailListItem[] = rawResults.map((row, index) => {
+            const checker1Approved = row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved';
+            const checker1Rejected = row.checker1ApprovedSdr === 'Rejected' || row.checker1ApprovedSds === 'Rejected';
+            const checker2Approved = row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved';
+            const checker2Rejected = row.checker2ApprovedSdr === 'Rejected' || row.checker2ApprovedSds === 'Rejected';
+            const checker3Approved = row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved';
+            const checker3Rejected = row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected';
+
+            let supplierStatus = 'Pending';
+            if (row.part_status !== 'Active' && !checker1Approved && !checker1Rejected) {
+                supplierStatus = 'Wait for JATH Active Part';
+            } else if (!row.sds_created && !checker1Approved && !checker1Rejected) {
+                supplierStatus = 'Pending';
+            } else if (checker1Approved && checker2Approved && checker3Approved) {
+                supplierStatus = 'Completed';
+            } else if (checker1Rejected || checker2Rejected || checker3Rejected) {
+                supplierStatus = 'Rejected';
+            } else {
+                supplierStatus = 'Submitted';
+            }
+
+            let checker1Status = 'Pending';
+            if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+                checker1Status = 'Supplier Pending';
+            } else if (checker1Approved && checker2Approved && checker3Approved) {
+                checker1Status = 'Completed';
+            } else if (checker1Rejected) {
+                checker1Status = 'Rejected';
+            } else if (checker1Approved) {
+                checker1Status = 'Approved';
+            }
+
+            let checker2Status = 'Pending';
+            if (checker1Status === 'Completed') {
+                checker2Status = 'Completed';
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+                checker2Status = 'Supplier Pending';
+            } else if (checker1Status === 'Pending') {
+                checker2Status = 'Wait for Checker 1 Approve';
+            } else if (checker2Rejected) {
+                checker2Status = 'Rejected';
+            } else if (checker2Approved) {
+                checker2Status = 'Approved';
+            }
+
+            let checker3Status = 'Pending';
+            if (checker2Status === 'Completed') {
+                checker3Status = 'Completed';
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+                checker3Status = 'Supplier Pending';
+            } else if (checker2Status === 'Wait for Checker 1 Approve') {
+                checker3Status = 'Wait for Checker 1 Approve';
+            } else if (checker2Status === 'Pending') {
+                checker3Status = 'Wait for Checker 2 Approve';
+            } else if (checker3Rejected) {
+                checker3Status = 'Rejected';
+            } else if (checker3Approved) {
+                checker3Status = 'Approved';
+            }
+
+            const hasAnyRejection = checker1Rejected || checker2Rejected || checker3Rejected;
+            const dueDate = row.due_date;
+            const monthYear = dueDate
+                ? this.formatMonthYear(dueDate)
+                : this.formatMonthYear(new Date(row.created_at));
+            const sdsType: 'Special' | 'Normal' = row.special_id ? 'Special' : 'Normal';
+
+            return {
+                ...row,
+                supplierCode: row.supplier_code,
+                no: index + 1 + skip,
+                supplierName: row.supplier_name || row.supplier,
+                partNo: row.part_no,
+                partName: row.part_name,
+                model: row.model,
+                monthYear,
+                sdsType,
+                dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
+                supplierStatus,
+                checker1Status,
+                checker2Status,
+                checker3Status,
+                checker1Approved,
+                checker1Rejected,
+                checker2Approved,
+                checker2Rejected,
+                checker3Approved,
+                checker3Rejected,
+                hasAnyRejection,
+                submittedAt: row.submitted,
+                canCreateSds: row.part_status === 'Active' && row.supplier_edit_status === 'Locked',
+                sdsCreated: row.sds_created || false,
+                hasDelay: row.has_delay === 1,
+                delayDays: row.has_delay === 1 && dueDate
+                    ? Math.floor((new Date(row.submitted || new Date()).getTime() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24))
+                    : undefined,
+                adsStatus: checker3Status,
+            }
+        });
+
+        return {
+            total: total,
+            items: rows,
+        };
+    }
+
+    async listSummaryReport(
+        filters: ListInspectionDetailsQueryDto,
+        supplierCode?: string,
+    ): Promise<InspectionDetailListResponse> {
+        const skip = Number.isNaN(Number(filters.skip)) ? 0 : Number(filters.skip);
+        const limit = Number.isNaN(Number(filters.limit)) ? 10 : Number(filters.limit);
+
+        // Build UNION query combining sample_data_sheets and sds_inspection_detail (sds_created = 0)
+        let query = `
+            WITH rej AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY a.sample_data_sheet_id
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Rejected'
+                  AND a.re_submit_date IS NOT NULL
+            ),
+            latest AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+            ),
+            latest_approved AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Approved'
+            ),
+            combined_data AS (
+                -- Part 1: Records from sample_data_sheets
+                SELECT
+                    sheet.id as sheet_id,
+                    detail.id as detail_id,
+                    sheet.supplier,
+                    sheet.part_no,
+                    sheet.part_name,
+                    sheet.model,
+                    sheet.inspection_detail_id,
+                    sheet.sdr_date,
+                    detail.part_status,
+                    detail.supplier_edit_status,
+                    detail.sds_created,
+                    detail.supplier_code,
+                    detail.supplier_name,
+                    ISNULL(sheet.sdr_date, detail.due_date) AS due_date,
+                    sheet.created_at,
+                    sheet.loop,
+                    1 as has_sheet
+                FROM dbo.sample_data_sheets sheet
+                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id
+                
+                UNION ALL
+                
+                -- Part 2: Records from sds_inspection_detail where sds_created = 0
+                SELECT
+                    NULL as sheet_id,
+                    detail.id as detail_id,
+                    detail.supplier_name as supplier,
+                    detail.part_no,
+                    detail.part_name,
+                    detail.model,
+                    detail.id as inspection_detail_id,
+                    NULL as sdr_date,
+                    detail.part_status,
+                    detail.supplier_edit_status,
+                    detail.sds_created,
+                    detail.supplier_code,
+                    detail.supplier_name,
+                    detail.due_date,
+                    detail.created_at,
+                    1 as loop,
+                    0 as has_sheet
+                FROM dbo.sds_inspection_detail detail
+                WHERE detail.sds_created = 0
+                  ${filters.pageCreatedSds ? `AND detail.part_status = 'Active' AND detail.supplier_edit_status = 'Locked'` : ''}
+                  AND detail.active_row = 'Y'
+            )
+            SELECT
+                cd.*,
+                sp.id AS special_id,
+                l1_sdr.action AS checker1ApprovedSdr,
+                l1_sds.action AS checker1ApprovedSds,
+                l2_sdr.action AS checker2ApprovedSdr,
+                l2_sds.action AS checker2ApprovedSds,
+                l3_sdr.action AS checker3ApprovedSdr,
+                l3_sds.action AS checker3ApprovedSds,
+                la_sds.action_date AS submitted,
+                CASE 
+                    WHEN cd.sdr_date IS NOT NULL THEN 
+                        CASE 
+                            WHEN cd.sdr_date < (
+                                CASE 
+                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
+                                    ELSE GETDATE()
+                                END
+                            ) THEN 1
+                            ELSE 0
+                        END
+                    ELSE 0
+                END AS has_delay
+            FROM combined_data cd
+            LEFT JOIN dbo.sds_inspection_special_request sp
+                ON sp.inspection_detail_id = cd.inspection_detail_id
+               AND sp.id = (
+                    SELECT MAX(id)
+                    FROM dbo.sds_inspection_special_request
+                    WHERE inspection_detail_id = cd.inspection_detail_id
+                )
+            LEFT JOIN latest l1_sdr
+                ON l1_sdr.sample_data_sheet_id = cd.sheet_id
+               AND l1_sdr.loop = cd.loop
+               AND l1_sdr.document_type = 'SDR'
+               AND l1_sdr.role = 'Checker 1'
+               AND l1_sdr.rn = 1
+            LEFT JOIN latest l1_sds
+                ON l1_sds.sample_data_sheet_id = cd.sheet_id
+               AND l1_sds.loop = cd.loop
+               AND l1_sds.document_type = 'SDS'
+               AND l1_sds.role = 'Checker 1'
+               AND l1_sds.rn = 1
+            LEFT JOIN latest l2_sdr
+                ON l2_sdr.sample_data_sheet_id = cd.sheet_id
+               AND l2_sdr.loop = cd.loop
+               AND l2_sdr.document_type = 'SDR'
+               AND l2_sdr.role = 'Checker 2'
+               AND l2_sdr.rn = 1
+            LEFT JOIN latest l2_sds
+                ON l2_sds.sample_data_sheet_id = cd.sheet_id
+               AND l2_sds.loop = cd.loop
+               AND l2_sds.document_type = 'SDS'
+               AND l2_sds.role = 'Checker 2'
+               AND l2_sds.rn = 1
+            LEFT JOIN latest l3_sdr
+                ON l3_sdr.sample_data_sheet_id = cd.sheet_id
+               AND l3_sdr.loop = cd.loop
+               AND l3_sdr.document_type = 'SDR'
+               AND l3_sdr.role = 'Approver'
+               AND l3_sdr.rn = 1
+            LEFT JOIN latest l3_sds
+                ON l3_sds.sample_data_sheet_id = cd.sheet_id
+               AND l3_sds.loop = cd.loop
+               AND l3_sds.document_type = 'SDS'
+               AND l3_sds.role = 'Approver'
+               AND l3_sds.rn = 1
+            LEFT JOIN latest_approved la_sds
+                ON la_sds.sample_data_sheet_id = cd.sheet_id
+               AND la_sds.loop = cd.loop
+               AND la_sds.document_type = 'SDS'
+               AND la_sds.role = 'Approver'
+               AND la_sds.rn = 1
+            WHERE 1=1
+        `;
+
+        const filterParams: any[] = [];
+        let paramIndex = 0;
+        let querys = '';
+
+        if (supplierCode) {
+            querys += ` AND cd.supplier_code = @${paramIndex}`;
+            filterParams.push(supplierCode);
+            paramIndex++;
+        }
+
+        if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
+            querys += ` AND LOWER(cd.part_no) LIKE LOWER(@${paramIndex})`;
+            filterParams.push(`%${filters.partNo}%`);
+            paramIndex++;
+        }
+
+        if (filters.partName && filters.partName.toLowerCase() !== 'all') {
+            querys += ` AND LOWER(cd.part_name) LIKE LOWER(@${paramIndex})`;
+            filterParams.push(`%${filters.partName}%`);
+            paramIndex++;
+        }
+
+        if (filters.model && filters.model.toLowerCase() !== 'all') {
+            querys += ` AND LOWER(cd.model) LIKE LOWER(@${paramIndex})`;
+            filterParams.push(`%${filters.model}%`);
+            paramIndex++;
+        }
+
+        if (filters.monthYear && filters.monthYear.toLowerCase() !== 'all') {
+            querys += ` AND (FORMAT(cd.sdr_date, 'MM-yyyy') = @${paramIndex} OR FORMAT(cd.due_date, 'MM-yyyy') = @${paramIndex})`;
+            filterParams.push(filters.monthYear);
+            paramIndex++;
+        }
+
+        if (filters.sdsType && filters.sdsType.toLowerCase() !== 'all') {
+            if (filters.sdsType.toLowerCase() === 'special') {
+                querys += ` AND sp.id IS NOT NULL`;
+            } else if (filters.sdsType.toLowerCase() === 'normal') {
+                querys += ` AND sp.id IS NULL`;
+            }
+        }
+
+        query += querys;
+        query += ` ORDER BY cd.created_at DESC`;
+        query += ` OFFSET ${skip} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+        const queryParams = [...filterParams];
+
+
+        // Get total count
+        let countQuery = `
+            WITH combined_data AS (
+                SELECT 
+                    detail.id,
+                    detail.supplier_code,
+                    sheet.part_no,
+                    sheet.part_name,
+                    sheet.model,
+                    sheet.sdr_date,
+                    detail.due_date,
+                    sheet.inspection_detail_id
+                FROM dbo.sample_data_sheets sheet
+                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id
+                
+                UNION ALL
+                
+                SELECT 
+                    detail.id,
+                    detail.supplier_code,
+                    detail.part_no,
+                    detail.part_name,
+                    detail.model,
+                    NULL as sdr_date,
+                    detail.due_date,
+                    detail.id as inspection_detail_id
+                FROM dbo.sds_inspection_detail detail
+                WHERE detail.sds_created = 0
+                  AND detail.active_row = 'Y'
+            )
+            SELECT COUNT(*) as total
+            FROM combined_data cd
+            LEFT JOIN dbo.sds_inspection_special_request sp
+                ON sp.inspection_detail_id = cd.inspection_detail_id
+               AND sp.id = (
+                    SELECT MAX(id)
+                    FROM dbo.sds_inspection_special_request
+                    WHERE inspection_detail_id = cd.inspection_detail_id
+                )
+            WHERE 1=1
+        `;
+
+        const rawResults = await this.dataSource.query(query, queryParams);
+        const countResult = await this.dataSource.query(countQuery + querys.replace(/cd\./g, 'cd.'), filterParams);
+
+        const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
+
+        const rows: InspectionDetailListItem[] = rawResults.map((row, index) => {
+            const checker1Approved = row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved';
+            const checker1Rejected = row.checker1ApprovedSdr === 'Rejected' || row.checker1ApprovedSds === 'Rejected';
+            const checker2Approved = row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved';
+            const checker2Rejected = row.checker2ApprovedSdr === 'Rejected' || row.checker2ApprovedSds === 'Rejected';
+            const checker3Approved = row.checker3ApprovedSdr === 'Approved' && row.checker3ApprovedSds === 'Approved';
+            const checker3Rejected = row.checker3ApprovedSdr === 'Rejected' || row.checker3ApprovedSds === 'Rejected';
+
+            let supplierStatus = 'Pending';
+            if (row.part_status !== 'Active' && !checker1Approved && !checker1Rejected) {
+                supplierStatus = 'Wait for JATH Active Part';
+            } else if (!row.sds_created && !checker1Approved && !checker1Rejected) {
+                supplierStatus = 'Pending';
+            } else if (checker1Approved && checker2Approved && checker3Approved) {
+                supplierStatus = 'Completed';
+            } else if (checker1Rejected || checker2Rejected || checker3Rejected) {
+                supplierStatus = 'Rejected';
+            } else {
+                supplierStatus = 'Submitted';
+            }
+
+            let checker1Status = 'Pending';
+            if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+                checker1Status = 'Supplier Pending';
+            } else if (checker1Approved && checker2Approved && checker3Approved) {
+                checker1Status = 'Completed';
+            } else if (checker1Rejected) {
+                checker1Status = 'Rejected';
+            } else if (checker1Approved) {
+                checker1Status = 'Approved';
+            }
+
+            let checker2Status = 'Pending';
+            if (checker1Status === 'Completed') {
+                checker2Status = 'Completed';
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+                checker2Status = 'Supplier Pending';
+            } else if (checker1Status === 'Pending') {
+                checker2Status = 'Wait for Checker 1 Approve';
+            } else if (checker2Rejected) {
+                checker2Status = 'Rejected';
+            } else if (checker2Approved) {
+                checker2Status = 'Approved';
+            }
+
+            let checker3Status = 'Pending';
+            if (checker2Status === 'Completed') {
+                checker3Status = 'Completed';
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+                checker3Status = 'Supplier Pending';
+            } else if (checker2Status === 'Wait for Checker 1 Approve') {
+                checker3Status = 'Wait for Checker 1 Approve';
+            } else if (checker2Status === 'Pending') {
+                checker3Status = 'Wait for Checker 2 Approve';
+            } else if (checker3Rejected) {
+                checker3Status = 'Rejected';
+            } else if (checker3Approved) {
+                checker3Status = 'Approved';
+            }
+
+            const hasAnyRejection = checker1Rejected || checker2Rejected || checker3Rejected;
+            const dueDate = row.due_date;
+            const monthYear = dueDate
+                ? this.formatMonthYear(dueDate)
+                : this.formatMonthYear(new Date(row.created_at));
+            const sdsType: 'Special' | 'Normal' = row.special_id ? 'Special' : 'Normal';
+
+            return {
+                ...row,
+                supplierCode: row.supplier_code,
+                id: row.detail_id,
+                no: index + 1 + skip,
+                supplierName: row.supplier_name || row.supplier,
+                partNo: row.part_no,
+                partName: row.part_name,
+                model: row.model,
+                monthYear,
+                sdsType,
+                dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
+                supplierStatus,
+                checker1Status,
+                checker2Status,
+                checker3Status,
+                checker1Approved,
+                checker1Rejected,
+                checker2Approved,
+                checker2Rejected,
+                checker3Approved,
+                checker3Rejected,
+                hasAnyRejection,
+                submittedAt: row.submitted,
+                canCreateSds: row.part_status === 'Active' && row.supplier_edit_status === 'Locked',
+                sdsCreated: row.sds_created || false,
+                hasDelay: row.has_delay === 1,
+                delayDays: row.has_delay === 1 && dueDate
+                    ? Math.floor((new Date(row.submitted || new Date()).getTime() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24))
+                    : undefined,
+                adsStatus: checker3Status,
+            }
+        });
+
+        return {
+            total: total,
+            items: rows,
+        };
+    }
+
+
 
     private formatMonthYear(value: Date): string {
         return moment(value).format('MM-YYYY');
@@ -641,8 +1367,8 @@ export class SampleDataSheetService {
         return clone;
     }
 
-    private createRow(row: CreateSampleDataSheetRowDto, index: number, sheetId: number) {
-        return this.rowRepo.create({
+    private async createRow(row: CreateSampleDataSheetRowDto, index: number, sheetId: number) {
+        const savedRow = await this.rowRepo.save({
             sampleDataSheetId: sheetId,
             no: Number(row.no ?? index + 1),
             measuringItem: String(row.measuringItem),
@@ -651,18 +1377,32 @@ export class SampleDataSheetService {
             inspectionInstrument: String(row.inspectionInstrument),
             remark: row.remark ? String(row.remark) : null,
             sampleQty: Number(row.sampleQty),
-            samples: JSON.stringify(row.samples ?? []),
             judgement: row.judgement ? String(row.judgement) : null,
             xBar: row.xBar ? String(row.xBar) : null,
             r: row.r ? String(row.r) : null,
             cp: row.cp ? String(row.cp) : null,
             cpk: row.cpk ? String(row.cpk) : null,
         });
+
+        // Save samples to separate table
+        if (row.samples && row.samples.length > 0) {
+            const sampleEntities = row.samples.map(sample => this.sampleRepo.create({
+                sampleDataSheetRowId: savedRow.id,
+                no: sample.no,
+                value: sample.value ? parseFloat(sample.value) : null,
+            }));
+            await this.sampleRepo.save(sampleEntities);
+        }
+
+        return savedRow;
     }
 
     private mapSheet(sheet: SampleDataSheetEntity): SampleDataSheetResponse {
         const rows: SampleDataSheetRowResponse[] = (sheet.rows || []).map((row) => {
-            const samples = JSON.parse(row.samples || '[]') as SampleDataSheetSampleResponse[];
+            const samples: SampleDataSheetSampleResponse[] = (row.samples || []).map(sample => ({
+                no: sample.no,
+                value: sample.value !== null ? String(sample.value) : '',
+            }));
             return {
                 id: row.id,
                 sampleDataSheetId: row.sampleDataSheetId,
@@ -704,7 +1444,7 @@ export class SampleDataSheetService {
     async findById(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
             where: { id },
-            relations: ['rows'],
+            relations: ['rows', 'rows.samples'],
         });
 
         if (!sheet) {
@@ -714,10 +1454,10 @@ export class SampleDataSheetService {
         return this.mapSheet(sheet);
     }
 
-    async findByInspectionDetailId(inspectionDetailId: number): Promise<SampleDataSheetResponse | null> {
+    async findByInspectionDetailId(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
-            where: { inspectionDetailId },
-            relations: ['rows'],
+            where: { id },
+            relations: ['rows', 'rows.samples'],
         });
 
         if (!sheet) {
@@ -1042,6 +1782,7 @@ export class SampleDataSheetService {
             await this.sdsLogRepo.save({
                 menu: 'SDS Approval',
                 sdsInspectionDetailId: sheet.inspectionDetailId,
+                sampleDataSheetId: sheet.id,
                 partNo: sheet.partNo,
                 sdsMonthYear,
                 action: actionText,
@@ -1084,6 +1825,7 @@ export class SampleDataSheetService {
             await this.sdsLogRepo.save({
                 menu: 'SDS Approval',
                 sdsInspectionDetailId: sheet.inspectionDetailId,
+                sampleDataSheetId: sheet.id,
                 partNo: sheet.partNo,
                 sdsMonthYear,
                 action: actionText,

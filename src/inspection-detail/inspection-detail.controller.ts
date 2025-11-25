@@ -103,7 +103,7 @@ export class InspectionDetailController {
 
     if (actionBy?.role === 'Supplier' && actionBy?.supplier?.supplierCode) {
       parsedBody.supplierCode = actionBy?.supplier?.supplierCode;
-      parsedBody.supplierEditStatus = 'Locked';
+      // parsedBody.supplierEditStatus = 'Locked';
       parsedBody.partStatus = 'Inactive';
     }
 
@@ -182,7 +182,7 @@ export class InspectionDetailController {
 
     if (actionBy?.role === 'Supplier' && actionBy?.supplier?.supplierCode) {
       parsedBody.supplierCode = actionBy?.supplier?.supplierCode;
-      parsedBody.supplierEditStatus = 'Locked';
+      // parsedBody.supplierEditStatus = 'Locked';
       parsedBody.partStatus = 'Inactive';
     }
 
@@ -196,7 +196,7 @@ export class InspectionDetailController {
   @Post('special-request')
   @UseGuards(JwtAuthGuard)
   async createSpecialRequest(
-    @Body() body: CreateSpecialRequestDto, 
+    @Body() body: CreateSpecialRequestDto,
     @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
   ) {
     if (!body) {

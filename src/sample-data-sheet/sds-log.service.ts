@@ -1,16 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { SdsLogEntity } from './entities/sds-log.entity';
 import { CreateSdsLogDto } from './dto/create-sds-log.dto';
 import { FilterSdsLogDto } from './dto/filter-sds-log.dto';
+import { SampleDataSheetEntity } from './entities/sample-data-sheet.entity';
 
 @Injectable()
 export class SdsLogService {
     constructor(
         @InjectRepository(SdsLogEntity)
         private sdsLogRepository: Repository<SdsLogEntity>,
-    ) {}
+        @InjectRepository(SampleDataSheetEntity)
+        private sdsInspectionDetailRepository: Repository<SampleDataSheetEntity>,
+    ) { }
 
     async createLog(createSdsLogDto: CreateSdsLogDto): Promise<SdsLogEntity> {
         const log = this.sdsLogRepository.create(createSdsLogDto);
@@ -25,8 +28,8 @@ export class SdsLogService {
         }
 
         if (filterDto.sdsInspectionDetailId) {
-            query.andWhere('log.sdsInspectionDetailId = :sdsInspectionDetailId', { 
-                sdsInspectionDetailId: filterDto.sdsInspectionDetailId 
+            query.andWhere('log.sdsInspectionDetailId = :sdsInspectionDetailId', {
+                sdsInspectionDetailId: filterDto.sdsInspectionDetailId
             });
         }
 
@@ -75,24 +78,45 @@ export class SdsLogService {
 
     async findByPartNo(partNo: string, actionRole?: string): Promise<SdsLogEntity[]> {
         const where: any = { partNo };
-        
+
         if (actionRole) {
             where.actionRole = actionRole;
         }
-        
+
         return await this.sdsLogRepository.find({
             where,
             order: { actionDate: 'DESC' },
         });
     }
 
-    async findByInspectionDetailId(sdsInspectionDetailId: number, actionRole?: string): Promise<SdsLogEntity[]> {
-        const where: any = { sdsInspectionDetailId };
-        
-        if (actionRole) {
-            where.actionRole = actionRole;
+    async findByInspectionDetailId(sdsId: number, inspectionDetailId: number, actionRole?: string): Promise<SdsLogEntity[]> {
+        const where: any = [];
+        let sheet = undefined;
+        if (sdsId) {
+            sheet = await this.sdsInspectionDetailRepository.findOne({
+                where: { id: sdsId },
+            });
+            where.push({
+                sampleDataSheetId: sdsId,
+                ...actionRole ? { actionRole } : {},
+            });
+            if (sheet) {
+                where.push({
+                    sdsInspectionDetailId: sheet.inspectionDetailId,
+                    sampleDataSheetId: IsNull(),
+                    ...actionRole ? { actionRole } : {},
+                });
+            }
         }
-        
+
+        if (inspectionDetailId && sheet?.inspectionDetailId !== inspectionDetailId) {
+            where.push({
+                sdsInspectionDetailId: inspectionDetailId,
+                sampleDataSheetId: IsNull(),
+                ...actionRole ? { actionRole } : {},
+            });
+        }
+
         return await this.sdsLogRepository.find({
             where,
             order: { actionDate: 'DESC' },

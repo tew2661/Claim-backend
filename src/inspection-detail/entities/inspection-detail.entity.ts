@@ -60,19 +60,19 @@ export class InspectionDetailEntity {
     @Column({ name: 'sdr_file', type: 'nvarchar', length: 500, nullable: true })
     sdrFile: string;
 
-    @Column({ 
-        name: 'part_status', 
-        type: 'nvarchar', 
+    @Column({
+        name: 'part_status',
+        type: 'nvarchar',
         length: 20,
-        default: PartStatus.Inactive 
+        default: PartStatus.Inactive
     })
     partStatus: PartStatus;
 
-    @Column({ 
-        name: 'supplier_edit_status', 
-        type: 'nvarchar', 
+    @Column({
+        name: 'supplier_edit_status',
+        type: 'nvarchar',
         length: 20,
-        default: SupplierEditStatus.Unlocked 
+        default: SupplierEditStatus.Unlocked
     })
     supplierEditStatus: SupplierEditStatus;
 
@@ -83,13 +83,20 @@ export class InspectionDetailEntity {
     })
     sdsCreated: boolean;
 
-    @Column({ 
-        name: 'active_row', 
-        type: 'char', 
-        length: 1, 
-        default: ActiveStatus.YES 
+    @Column({
+        name: 'active_row',
+        type: 'char',
+        length: 1,
+        default: ActiveStatus.YES
     })
     activeRow: ActiveStatus;
+
+    @Column({
+        name: 'due_date',
+        type: 'datetime2',
+        nullable: true,
+    })
+    dueDate: Date;
 
     @CreateDateColumn({ name: 'created_at', type: 'datetime2' })
     createdAt: Date;

@@ -5,6 +5,8 @@ import {
     ManyToOne,
     JoinColumn,
     CreateDateColumn,
+    UpdateDateColumn,
+    DeleteDateColumn,
 } from 'typeorm';
 import { SampleDataSheetEntity } from './sample-data-sheet.entity';
 import { UsersEntity } from 'src/users/entities/users.entity';
@@ -76,4 +78,10 @@ export class SampleDataSheetApprovalEntity {
 
     @Column({ name: 'sds_month_year', type: 'nvarchar', length: 20, nullable: true })
     sdsMonthYear: string;
+
+    @UpdateDateColumn({ name: 'updated_at', type: 'datetime2' })
+    updatedAt: Date;
+
+    @DeleteDateColumn({ name: 'deleted_at', type: 'datetime2', nullable: true })
+    deletedAt: Date;
 }

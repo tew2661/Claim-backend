@@ -7,7 +7,7 @@ import { UsersEntity } from 'src/users/entities/users.entity';
 @Controller('sds-log')
 @UseGuards(JwtAuthGuard)
 export class SdsLogController {
-    constructor(private readonly sdsLogService: SdsLogService) {}
+    constructor(private readonly sdsLogService: SdsLogService) { }
 
     @Get()
     async getLogs(
@@ -40,11 +40,12 @@ export class SdsLogController {
 
     @Get('by-inspection-detail')
     async getLogsByInspectionDetailId(
-        @Query('sdsInspectionDetailId') sdsInspectionDetailId: number,
+        @Query('sdsId') sdsId: number,
+        @Query('inspectionDetailId') inspectionDetailId: number,
         @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
     ) {
         const actionRole = actionBy?.role === 'Supplier' ? 'Supplier' : undefined;
-        const logs = await this.sdsLogService.findByInspectionDetailId(sdsInspectionDetailId, actionRole);
+        const logs = await this.sdsLogService.findByInspectionDetailId(sdsId, inspectionDetailId, actionRole);
         return {
             success: true,
             data: logs,

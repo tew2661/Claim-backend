@@ -54,7 +54,7 @@ const allowedFileTypes: Record<string, string[]> = {
 
 @Controller('sample-data-sheet')
 export class SampleDataSheetController {
-    constructor(private readonly sampleDataSheetService: SampleDataSheetService) {}
+    constructor(private readonly sampleDataSheetService: SampleDataSheetService) { }
 
     @Post()
     @UseGuards(JwtAuthGuard)
@@ -86,7 +86,7 @@ export class SampleDataSheetController {
             sdrFile?: Express.Multer.File[];
             sdrReport?: Express.Multer.File[];
         },
-        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
     ) {
         if (!payload) {
             throw new BadRequestException('payload is required');
@@ -132,7 +132,7 @@ export class SampleDataSheetController {
     @UseGuards(JwtAuthGuard)
     async getByInspectionDetailPdf(
         @Param('inspectionDetailId') inspectionDetailId: string,
-        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
         @Res() res: Response
     ) {
         const id = Number(inspectionDetailId);
@@ -157,10 +157,10 @@ export class SampleDataSheetController {
         res.send(Buffer.from(pdfBytes1));
     }
 
-    @Get('by-inspection/:inspectionDetailId')
+    @Get('by-inspection/:id')
     @UseGuards(JwtAuthGuard)
-    async getByInspectionDetail(@Param('inspectionDetailId') inspectionDetailId: string) {
-        const id = Number(inspectionDetailId);
+    async getByInspectionDetail(@Param('id') idSds: string) {
+        const id = Number(idSds);
         if (!id || Number.isNaN(id)) {
             throw new BadRequestException('Invalid inspection detail id');
         }
@@ -207,7 +207,7 @@ export class SampleDataSheetController {
             sdrFile?: Express.Multer.File[];
             sdrReport?: Express.Multer.File[];
         },
-         @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
     ) {
         if (!payload) {
             throw new BadRequestException('payload is required');
@@ -254,7 +254,7 @@ export class SampleDataSheetController {
     @Get('inspection-details')
     @UseGuards(JwtAuthGuard)
     async listInspectionDetails(
-        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
         @Query() query: ListInspectionDetailsQueryDto,
     ) {
         const supplierCode = actionBy?.role === 'Supplier'
@@ -267,10 +267,59 @@ export class SampleDataSheetController {
         };
     }
 
+    @Get('sds-approval')
+    @UseGuards(JwtAuthGuard)
+    async sdsApproval(
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
+        @Query() query: ListInspectionDetailsQueryDto,
+    ) {
+        const supplierCode = actionBy?.role === 'Supplier'
+            ? actionBy?.supplier?.supplierCode
+            : undefined;
+        const result = await this.sampleDataSheetService.listSampleDataSheets(query, supplierCode);
+        return {
+            success: true,
+            data: result,
+        };
+    }
+
+    @Get('summary-report')
+    @UseGuards(JwtAuthGuard)
+    async summaryReport(
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
+        @Query() query: ListInspectionDetailsQueryDto,
+    ) {
+        const supplierCode = actionBy?.role === 'Supplier'
+            ? actionBy?.supplier?.supplierCode
+            : undefined;
+        const result = await this.sampleDataSheetService.listSummaryReport(query, supplierCode);
+        return {
+            success: true,
+            data: result,
+        };
+    }
+
+
+    @Get('inspection-details-page-created-sds')
+    @UseGuards(JwtAuthGuard)
+    async listInspectionDetailsPageCreatedSds(
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
+        @Query() query: ListInspectionDetailsQueryDto,
+    ) {
+        const supplierCode = actionBy?.role === 'Supplier'
+            ? actionBy?.supplier?.supplierCode
+            : undefined;
+        const result = await this.sampleDataSheetService.listSummaryReport({ ...query, pageCreatedSds: true }, supplierCode);
+        return {
+            success: true,
+            data: result,
+        };
+    }
+
     @Get('inspection-details-delay')
     @UseGuards(JwtAuthGuard)
     async listInspectionDetailsDelay(
-        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
         @Query() query: ListInspectionDetailsQueryDto,
     ) {
         const supplierCode = actionBy?.role === 'Supplier'
@@ -288,7 +337,7 @@ export class SampleDataSheetController {
     @Post('sds-approval')
     @UseGuards(JwtAuthGuard)
     async submitSdsApproval(
-        @Req() { headers: { actionBy } } : { headers: { actionBy : UsersEntity }},
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
         @Body('payload') payload: SdsApprovalDto,
     ) {
         if (!payload) {

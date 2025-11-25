@@ -10,6 +10,7 @@ export interface ListInspectionDetailsQueryDto {
     limit?: number;
     checkerLevel?: 1 | 2 | 3;
     hasDelay?: boolean;
+    pageCreatedSds?: boolean;
 }
 
 export interface InspectionDetailListItem {

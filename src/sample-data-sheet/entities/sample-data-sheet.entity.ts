@@ -4,6 +4,7 @@ import {
     Column,
     CreateDateColumn,
     UpdateDateColumn,
+    DeleteDateColumn,
     OneToMany,
     ManyToOne,
     JoinColumn,
@@ -55,6 +56,9 @@ export class SampleDataSheetEntity {
 
     @UpdateDateColumn({ name: 'updated_at', type: 'datetime2' })
     updatedAt: Date;
+
+    @DeleteDateColumn({ name: 'deleted_at', type: 'datetime2', nullable: true })
+    deletedAt: Date;
 
     @OneToMany(() => SampleDataSheetRowEntity, row => row.sampleDataSheet, { cascade: true })
     rows: SampleDataSheetRowEntity[];

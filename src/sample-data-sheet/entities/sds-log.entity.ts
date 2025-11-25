@@ -3,6 +3,8 @@ import {
     Column,
     PrimaryGeneratedColumn,
     CreateDateColumn,
+    UpdateDateColumn,
+    DeleteDateColumn,
     Index,
 } from 'typeorm';
 
@@ -10,6 +12,7 @@ import {
 @Index('IDX_sds_log_part_no', ['partNo'])
 @Index('IDX_sds_log_action_date', ['actionDate'])
 @Index('IDX_sds_log_inspection_detail_id', ['sdsInspectionDetailId'])
+@Index('IDX_sds_log_sample_data_sheet_id', ['sampleDataSheetId'])
 export class SdsLogEntity {
     @PrimaryGeneratedColumn()
     id: number;
@@ -19,6 +22,9 @@ export class SdsLogEntity {
 
     @Column({ name: 'sds_inspection_detail_id', type: 'int', nullable: true })
     sdsInspectionDetailId: number;
+
+    @Column({ name: 'sample_data_sheet_id', type: 'int', nullable: true })
+    sampleDataSheetId: number;
 
     @Column({ name: 'part_no', type: 'varchar', length: 100, nullable: true })
     partNo: string;
@@ -43,4 +49,10 @@ export class SdsLogEntity {
 
     @CreateDateColumn({ name: 'created_at', type: 'datetime2' })
     createdAt: Date;
+
+    @UpdateDateColumn({ name: 'updated_at', type: 'datetime2' })
+    updatedAt: Date;
+
+    @DeleteDateColumn({ name: 'deleted_at', type: 'datetime2', nullable: true })
+    deletedAt: Date;
 }

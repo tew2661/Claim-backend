@@ -3,12 +3,15 @@ import {
     PrimaryGeneratedColumn,
     Column,
     ManyToOne,
+    OneToMany,
     CreateDateColumn,
     UpdateDateColumn,
+    DeleteDateColumn,
     JoinColumn,
     Index
 } from 'typeorm';
 import { SampleDataSheetEntity } from './sample-data-sheet.entity';
+import { SampleDataSheetRowSampleEntity } from './sample-data-sheet-row-sample.entity';
 
 @Entity({ schema: 'dbo', name: 'sample_data_sheet_rows' })
 @Index(['sampleDataSheetId'])
@@ -41,9 +44,6 @@ export class SampleDataSheetRowEntity {
     @Column({ name: 'sample_qty', type: 'int' })
     sampleQty: number;
 
-    @Column({ name: 'samples', type: 'nvarchar', length: 'max' })
-    samples: string;
-
     @Column({ name: 'judgement', type: 'nvarchar', length: 5, nullable: true })
     judgement: string;
 
@@ -65,7 +65,13 @@ export class SampleDataSheetRowEntity {
     @UpdateDateColumn({ name: 'updated_at', type: 'datetime2' })
     updatedAt: Date;
 
+    @DeleteDateColumn({ name: 'deleted_at', type: 'datetime2', nullable: true })
+    deletedAt: Date;
+
     @ManyToOne(() => SampleDataSheetEntity, sheet => sheet.rows, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'sample_data_sheet_id' })
     sampleDataSheet: SampleDataSheetEntity;
+
+    @OneToMany(() => SampleDataSheetRowSampleEntity, sample => sample.sampleDataSheetRow)
+    samples: SampleDataSheetRowSampleEntity[];
 }
