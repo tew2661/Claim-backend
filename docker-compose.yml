@@ -23,3 +23,17 @@ services:
       - NEST_PORT=3000
     depends_on:
       - redis
+  claim-database:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: claim-database
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "2333:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+
+volumes:
+  mssql-data:
