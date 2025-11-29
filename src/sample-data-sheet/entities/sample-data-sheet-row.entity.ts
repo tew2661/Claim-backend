@@ -41,6 +41,12 @@ export class SampleDataSheetRowEntity {
     @Column({ name: 'remark', type: 'nvarchar', length: 255, nullable: true })
     remark: string;
 
+    @Column({ name: 'tolerance_plus', type: 'int', nullable: true })
+    tolerancePlus: number;
+
+    @Column({ name: 'tolerance_minus', type: 'int', nullable: true })
+    toleranceMinus: number;
+
     @Column({ name: 'sample_qty', type: 'int' })
     sampleQty: number;
 

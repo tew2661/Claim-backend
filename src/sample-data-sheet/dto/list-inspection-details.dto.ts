@@ -1,5 +1,6 @@
 export interface ListInspectionDetailsQueryDto {
     monthYear?: string;
+    year?: string;
     partNo?: string;
     partName?: string;
     model?: string;
@@ -10,12 +11,18 @@ export interface ListInspectionDetailsQueryDto {
     limit?: number;
     checkerLevel?: 1 | 2 | 3;
     hasDelay?: boolean;
+    notHasDelay?: boolean;
     pageCreatedSds?: boolean;
+}
+
+export interface DashboardStatsQuery extends ListInspectionDetailsQueryDto {
+    monthYear?: string;
 }
 
 export interface InspectionDetailListItem {
     no: number;
     id: number;
+    sheetId?: number;
     supplierCode: string;
     supplierName: string;
     partNo: string;

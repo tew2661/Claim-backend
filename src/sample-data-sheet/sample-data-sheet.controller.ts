@@ -18,11 +18,20 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as fs from 'fs';
+import * as moment from 'moment';
+
 import { configPath } from 'src/path-files-config';
 import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 import { SampleDataSheetService } from './sample-data-sheet.service';
-import { CreateSampleDataSheetDto } from './dto/create-sample-data-sheet.dto';
-import { ListInspectionDetailsQueryDto } from './dto/list-inspection-details.dto';
+import {
+    CreateSampleDataSheetDto,
+    CreateSampleDataSheetRowDto,
+} from './dto/create-sample-data-sheet.dto';
+import {
+    ListInspectionDetailsQueryDto,
+    InspectionDetailListResponse,
+    DashboardStatsQuery,
+} from './dto/list-inspection-details.dto';
 import { SdsApprovalDto, SdsApprovalHistoryQueryDto } from './dto/sds-approval.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { Response } from 'express';
@@ -331,6 +340,113 @@ export class SampleDataSheetController {
         return {
             success: true,
             data: result,
+        };
+    }
+
+    @Get('dashboard-stats')
+    async getDashboardStats(
+        @Query() query: ListInspectionDetailsQueryDto,
+    ) {
+
+        // Get delay data (has_delay > 0)
+        const delayResult = await this.sampleDataSheetService.listSummaryReport({ ...query, monthYear: moment().format('MM-YYYY') });
+        const forMonthly = {
+            delayResult: delayResult.items.filter(item => item.hasDelay),
+            allResult: delayResult.items,
+            totalCount: delayResult.total,
+        };
+
+        const delayResultYearly = await this.sampleDataSheetService.listSummaryReport({ ...query, monthYear: undefined, year: moment().format('YYYY') });
+        const forYearly = {
+            delayResult: delayResultYearly.items.filter(item => item.hasDelay),
+            allResult: delayResultYearly.items,
+            totalCount: delayResultYearly.total,
+        };
+
+        // Get inspection result data
+        const inspectionResult = await this.sampleDataSheetService.getInspectionDashboardData(query);
+
+        // Calculate statistics
+        const totalCount = forMonthly.totalCount;
+        const delayCount = forMonthly.delayResult.length;
+        const onProcessCompleteCount = totalCount - delayCount;
+
+        const totalCountYearly = forYearly.totalCount;
+        const delayCountYearly = forYearly.delayResult.length;
+        const onProcessCompleteCountYearly = totalCountYearly - delayCountYearly;
+        return {
+            success: true,
+            data: {
+                monthly: {
+                    delayPercentage: totalCount > 0 ? Math.round((delayCount / totalCount) * 100) : 0,
+                    delayCount,
+                    onProcessCompletePercentage: totalCount > 0 ? Math.round((onProcessCompleteCount / totalCount) * 100) : 0,
+                    onProcessCompleteCount,
+                    delayData: forMonthly.allResult.map((item, index) => ({
+                        no: index + 1,
+                        id: item.id,
+                        sheetId: item.sheetId,
+                        supplier: item.supplierCode,
+                        partName: item.partName,
+                        partNumber: item.partNo,
+                        delay: item.hasDelay,
+                    })),
+                },
+                yearly: {
+                    delayPercentage: totalCountYearly > 0 ? Math.round((delayCountYearly / totalCountYearly) * 100) : 0,
+                    delayCount: delayCountYearly,
+                    onProcessCompletePercentage: totalCountYearly > 0 ? Math.round((onProcessCompleteCountYearly / totalCountYearly) * 100) : 0,
+                    onProcessCompleteCount: onProcessCompleteCountYearly,
+                    delayData: forYearly.allResult.map((item, index) => ({
+                        no: index + 1,
+                        id: item.id,
+                        sheetId: item.sheetId,
+                        supplier: item.supplierCode,
+                        partName: item.partName,
+                        partNumber: item.partNo,
+                        delay: item.hasDelay,
+                    })),
+                },
+                inspection: {
+                    okCount: inspectionResult.totalSds - inspectionResult.ngCount,
+                    ngCount: inspectionResult.ngCount,
+                    okPercentage: inspectionResult.totalSds > 0 ? Math.round(((inspectionResult.totalSds - inspectionResult.ngCount) / inspectionResult.totalSds) * 100) : 0,
+                    ngPercentage: inspectionResult.totalSds > 0 ? Math.round((inspectionResult.ngCount / inspectionResult.totalSds) * 100) : 0,
+                    inspectionData: inspectionResult.items.map((item, index) => {
+                        const checker1Approved = item.checker1ApprovedSdr === 'Approved' && item.checker1ApprovedSds === 'Approved';
+                        const checker1Rejected = item.checker1ApprovedSdr === 'Rejected' || item.checker1ApprovedSds === 'Rejected';
+                        const checker2Approved = item.checker2ApprovedSdr === 'Approved' && item.checker2ApprovedSds === 'Approved';
+                        const checker2Rejected = item.checker2ApprovedSdr === 'Rejected' || item.checker2ApprovedSds === 'Rejected';
+                        const checker3Approved = item.checker3ApprovedSdr === 'Approved' && item.checker3ApprovedSds === 'Approved';
+                        const checker3Rejected = item.checker3ApprovedSdr === 'Rejected' || item.checker3ApprovedSds === 'Rejected';
+
+                        let sdsStatus = 'Pending';
+                        if (item.part_status !== 'Active' && !checker1Approved && !checker1Rejected) {
+                            sdsStatus = 'Wait for JATH Active Part';
+                        } else if (!item.sds_created && !checker1Approved && !checker1Rejected) {
+                            sdsStatus = 'Pending';
+                        } else if (checker1Approved && checker2Approved && checker3Approved) {
+                            sdsStatus = 'Completed';
+                        } else if (checker1Rejected || checker2Rejected || checker3Rejected) {
+                            sdsStatus = 'Rejected';
+                        } else {
+                            sdsStatus = 'Submitted';
+                        }
+
+                        return {
+                            no: index + 1,
+                            id: item.id,
+                            sheetId: item.sheet_id,
+                            supplier: item.supplier,
+                            partName: item.part_name,
+                            partNo: item.part_no,
+                            ngType: item.ng_count,
+                            sdsStatus,
+                            dueToInspectionDept: item.sdr_date ? moment(item.sdr_date).format('DD-MM-YYYY') : '',
+                        };
+                    }),
+                },
+            },
         };
     }
 

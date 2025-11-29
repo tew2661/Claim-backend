@@ -13,11 +13,13 @@ import {
     SampleDataSheetSampleResponse,
 } from './interfaces/sample-data-sheet-response.interface';
 import { InspectionDetailEntity } from 'src/inspection-detail/entities/inspection-detail.entity';
+import { InspectionItemEntity } from 'src/inspection-detail/entities/inspection-item.entity';
 import { InspectionSpecialRequestEntity } from 'src/inspection-detail/entities/inspection-special-request.entity';
 import {
     InspectionDetailListItem,
     InspectionDetailListResponse,
     ListInspectionDetailsQueryDto,
+    DashboardStatsQuery,
 } from './dto/list-inspection-details.dto';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { SdsApprovalDto, SdsApprovalHistoryQueryDto } from './dto/sds-approval.dto';
@@ -101,10 +103,16 @@ export class SampleDataSheetService {
 
         const savedSheet = await this.sheetRepo.save(sheet);
 
+        const inspectionItems = await this.dataSource.getRepository(InspectionItemEntity).find({
+            where: { inspectionDetailId: dto.inspectionDetailId },
+        });
+        const itemsMap = new Map(inspectionItems.map(item => [item.no, item]));
+
         if (dto.sdrData && dto.sdrData.length) {
             for (let index = 0; index < dto.sdrData.length; index++) {
                 const rowDto = dto.sdrData[index];
-                const row = await this.createRow(rowDto, index, savedSheet.id);
+                const item = itemsMap.get(Number(rowDto.no ?? index + 1));
+                const row = await this.createRow(rowDto, index, savedSheet.id, item);
             }
         }
 
@@ -164,11 +172,17 @@ export class SampleDataSheetService {
         console.log('Updating Sample Data Sheet:', sheet);
         const savedSheet = await this.sheetRepo.save(sheet);
 
+        const inspectionItems = await this.dataSource.getRepository(InspectionItemEntity).find({
+            where: { inspectionDetailId: dto.inspectionDetailId },
+        });
+        const itemsMap = new Map(inspectionItems.map(item => [item.no, item]));
+
         await this.rowRepo.delete({ sampleDataSheetId: savedSheet.id });
         if (dto.sdrData && dto.sdrData.length) {
             for (let index = 0; index < dto.sdrData.length; index++) {
                 const rowDto = dto.sdrData[index];
-                const row = await this.createRow(rowDto, index, savedSheet.id);
+                const item = itemsMap.get(Number(rowDto.no ?? index + 1));
+                const row = await this.createRow(rowDto, index, savedSheet.id, item);
             }
         }
 
@@ -830,9 +844,10 @@ export class SampleDataSheetService {
         }
 
         if (filters.monthYear && filters.monthYear.toLowerCase() !== 'all') {
-            querys += ` AND FORMAT(sheet.sdr_date, 'MM-yyyy') = @${paramIndex}`;
-            filterParams.push(filters.monthYear);
-            paramIndex++;
+            querys += ` AND (sheet.sdr_date BETWEEN @${paramIndex} AND @${paramIndex + 1})`;
+            filterParams.push(moment(`${moment(filters.monthYear, 'MM-YYYY').format('YYYY-MM')}-01 00:00:00`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
+            filterParams.push(moment(`${moment(filters.monthYear, 'MM-YYYY').format('YYYY-MM')}-${moment(filters.monthYear, 'MM-YYYY').endOf('month').format('DD')} 23:59:59`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
+            paramIndex += 2;
         }
 
         if (filters.sdsType && filters.sdsType.toLowerCase() !== 'all') {
@@ -1178,9 +1193,17 @@ export class SampleDataSheetService {
         }
 
         if (filters.monthYear && filters.monthYear.toLowerCase() !== 'all') {
-            querys += ` AND (FORMAT(cd.sdr_date, 'MM-yyyy') = @${paramIndex} OR FORMAT(cd.due_date, 'MM-yyyy') = @${paramIndex})`;
-            filterParams.push(filters.monthYear);
-            paramIndex++;
+            querys += ` AND COALESCE(cd.sdr_date, cd.due_date) BETWEEN @${paramIndex} AND @${paramIndex + 1}`;
+            filterParams.push(moment(`${moment(filters.monthYear, 'MM-YYYY').format('YYYY-MM')}-01 00:00:00`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
+            filterParams.push(moment(`${moment(filters.monthYear, 'MM-YYYY').format('YYYY-MM')}-${moment(filters.monthYear, 'MM-YYYY').endOf('month').format('DD')} 23:59:59`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
+            paramIndex += 2;
+        }
+
+        if (filters.year && filters.year.toLowerCase() !== 'all') {
+            querys += ` AND COALESCE(cd.sdr_date, cd.due_date) BETWEEN @${paramIndex} AND @${paramIndex + 1}`;
+            filterParams.push(moment(`${filters.year}-04-01 00:00:00`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
+            filterParams.push(moment(`${filters.year}-03-31 23:59:59`, 'YYYY-MM-DD HH:mm:ss').add(1, 'year').format('YYYY-MM-DD HH:mm:ss'));
+            paramIndex += 2;
         }
 
         if (filters.sdsType && filters.sdsType.toLowerCase() !== 'all') {
@@ -1189,6 +1212,30 @@ export class SampleDataSheetService {
             } else if (filters.sdsType.toLowerCase() === 'normal') {
                 querys += ` AND sp.id IS NULL`;
             }
+        }
+
+        if (filters.hasDelay) {
+            querys += ` AND (
+                CASE 
+                    WHEN cd.sdr_date IS NOT NULL THEN 
+                        CASE 
+                            WHEN cd.sdr_date < GETDATE() THEN 1
+                            ELSE 0
+                        END
+                    ELSE 0
+                END 
+            ) = 1`;
+        } else if (filters.notHasDelay) {
+            querys += ` AND (
+                CASE 
+                    WHEN cd.sdr_date IS NOT NULL THEN 
+                        CASE 
+                            WHEN cd.sdr_date < GETDATE() THEN 1
+                            ELSE 0
+                        END
+                    ELSE 0
+                END 
+            ) = 0`;
         }
 
         query += querys;
@@ -1202,6 +1249,7 @@ export class SampleDataSheetService {
             WITH combined_data AS (
                 SELECT 
                     detail.id,
+                    sheet.id as sheet_id,
                     detail.supplier_code,
                     sheet.part_no,
                     sheet.part_name,
@@ -1216,6 +1264,7 @@ export class SampleDataSheetService {
                 
                 SELECT 
                     detail.id,
+                    NULL as sheet_id,
                     detail.supplier_code,
                     detail.part_no,
                     detail.part_name,
@@ -1315,6 +1364,7 @@ export class SampleDataSheetService {
                 ...row,
                 supplierCode: row.supplier_code,
                 id: row.detail_id,
+                sheetId: row.sheet_id,
                 no: index + 1 + skip,
                 supplierName: row.supplier_name || row.supplier,
                 partNo: row.part_no,
@@ -1367,7 +1417,7 @@ export class SampleDataSheetService {
         return clone;
     }
 
-    private async createRow(row: CreateSampleDataSheetRowDto, index: number, sheetId: number) {
+    private async createRow(row: CreateSampleDataSheetRowDto, index: number, sheetId: number, item?: InspectionItemEntity) {
         const savedRow = await this.rowRepo.save({
             sampleDataSheetId: sheetId,
             no: Number(row.no ?? index + 1),
@@ -1382,6 +1432,8 @@ export class SampleDataSheetService {
             r: row.r ? String(row.r) : null,
             cp: row.cp ? String(row.cp) : null,
             cpk: row.cpk ? String(row.cpk) : null,
+            tolerancePlus: item?.tolerancePlus ? (isNaN(parseInt(item.tolerancePlus)) ? null : parseInt(item.tolerancePlus)) : null,
+            toleranceMinus: item?.toleranceMinus ? (isNaN(parseInt(item.toleranceMinus)) ? null : parseInt(item.toleranceMinus)) : null,
         });
 
         // Save samples to separate table
@@ -1395,6 +1447,139 @@ export class SampleDataSheetService {
         }
 
         return savedRow;
+    }
+
+    async getInspectionDashboardData(query: DashboardStatsQuery) {
+        const limit = query.limit || 10;
+        const skip = query.skip || 0;
+        const monthYear = query.monthYear;
+
+        let dateFilter = '';
+        const params: any[] = [];
+
+        // if (monthYear) {
+        //     const [month, year] = monthYear.split('-');
+        //     // SQL Server DATEPART
+        //     dateFilter = `AND DATEPART(month, sds.sdr_date) = @0 AND DATEPART(year, sds.sdr_date) = @1`;
+        //     params.push(month, year);
+        // }
+
+        const currentYear = moment().year();
+        const fiscalYearStartDate = moment().year(currentYear).month(3).date(1).startOf('month'); // April 1st of current year
+        const fiscalYearEndDate = moment().year(currentYear + 1).month(2).date(28).endOf('month'); // March 31st of next year
+
+        dateFilter = `AND sds.sdr_date >= @0 AND sds.sdr_date <= @1`;
+        console.log(fiscalYearStartDate.format('YYYY-MM-DD HH:mm:ss'), fiscalYearEndDate.format('YYYY-MM-DD HH:mm:ss'));
+        params.push(fiscalYearStartDate.format('YYYY-MM-DD HH:mm:ss'), fiscalYearEndDate.format('YYYY-MM-DD HH:mm:ss'));
+
+        const sql = `
+            WITH rej AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY a.sample_data_sheet_id
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Rejected'
+                  AND a.re_submit_date IS NOT NULL
+            ),
+            latest AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+            ),
+            latest_approved AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Approved'
+            )
+            SELECT
+                sum_sds.id AS sum_id,
+                sum_sds.ng_count,
+                sds.*,
+                detail.part_status,
+                detail.sds_created,
+                l1_sdr.action AS checker1ApprovedSdr,
+                l1_sds.action AS checker1ApprovedSds,
+                l2_sdr.action AS checker2ApprovedSdr,
+                l2_sds.action AS checker2ApprovedSds,
+                l3_sdr.action AS checker3ApprovedSdr,
+                l3_sds.action AS checker3ApprovedSds
+            FROM (
+                SELECT
+                    sds.id,
+                    COUNT(*) AS ng_count
+                FROM sample_data_sheets AS sds
+                JOIN sample_data_sheet_rows AS r ON r.sample_data_sheet_id = sds.id
+                JOIN sample_data_sheet_row_samples AS sm ON sm.sample_data_sheet_row_id = r.id
+                WHERE (
+                    TRY_CAST(sm.value AS FLOAT) > TRY_CAST(r.specification AS FLOAT) + r.tolerance_plus
+                    OR TRY_CAST(sm.value AS FLOAT) < TRY_CAST(r.specification AS FLOAT) - r.tolerance_minus
+                )
+                ${dateFilter}
+                GROUP BY sds.id
+                ORDER BY ng_count DESC
+                OFFSET ${skip} ROWS FETCH NEXT ${limit} ROWS ONLY
+            ) AS sum_sds
+            JOIN sample_data_sheets AS sds ON sds.id = sum_sds.id
+            LEFT JOIN sds_inspection_detail AS detail ON detail.id = sds.inspection_detail_id
+            LEFT JOIN latest l1_sdr ON l1_sdr.sample_data_sheet_id = sds.id AND l1_sdr.loop = sds.loop AND l1_sdr.document_type = 'SDR' AND l1_sdr.role = 'Checker 1' AND l1_sdr.rn = 1
+            LEFT JOIN latest l1_sds ON l1_sds.sample_data_sheet_id = sds.id AND l1_sds.loop = sds.loop AND l1_sds.document_type = 'SDS' AND l1_sds.role = 'Checker 1' AND l1_sds.rn = 1
+            LEFT JOIN latest l2_sdr ON l2_sdr.sample_data_sheet_id = sds.id AND l2_sdr.loop = sds.loop AND l2_sdr.document_type = 'SDR' AND l2_sdr.role = 'Checker 2' AND l2_sdr.rn = 1
+            LEFT JOIN latest l2_sds ON l2_sds.sample_data_sheet_id = sds.id AND l2_sds.loop = sds.loop AND l2_sds.document_type = 'SDS' AND l2_sds.role = 'Checker 2' AND l2_sds.rn = 1
+            LEFT JOIN latest l3_sdr ON l3_sdr.sample_data_sheet_id = sds.id AND l3_sdr.loop = sds.loop AND l3_sdr.document_type = 'SDR' AND l3_sdr.role = 'Approver' AND l3_sdr.rn = 1
+            LEFT JOIN latest l3_sds ON l3_sds.sample_data_sheet_id = sds.id AND l3_sds.loop = sds.loop AND l3_sds.document_type = 'SDS' AND l3_sds.role = 'Approver' AND l3_sds.rn = 1
+        `;
+
+        const results = await this.dataSource.query(sql, params);
+
+        // Get total count for pagination/percentage
+        const countSql = `
+            SELECT COUNT(DISTINCT sds.id) as total
+            FROM sample_data_sheets AS sds
+            JOIN sample_data_sheet_rows AS r ON r.sample_data_sheet_id = sds.id
+            JOIN sample_data_sheet_row_samples AS sm ON sm.sample_data_sheet_row_id = r.id
+            WHERE (
+                TRY_CAST(sm.value AS FLOAT) > TRY_CAST(r.specification AS FLOAT) + r.tolerance_plus
+                OR TRY_CAST(sm.value AS FLOAT) < TRY_CAST(r.specification AS FLOAT) - r.tolerance_minus
+            )
+            ${dateFilter}
+        `;
+        const countResult = await this.dataSource.query(countSql, params);
+        const ngCount = countResult[0]?.total || 0;
+
+        // Get total SDS count for the period to calculate percentage
+        const totalSdsSql = `
+            SELECT COUNT(*) as total 
+            FROM sample_data_sheets sds 
+            WHERE 1=1 ${dateFilter}
+        `;
+        const totalSdsResult = await this.dataSource.query(totalSdsSql, params);
+        const totalSds = totalSdsResult[0]?.total || 0;
+
+        return {
+            items: results,
+            ngCount,
+            totalSds
+        };
     }
 
     private mapSheet(sheet: SampleDataSheetEntity): SampleDataSheetResponse {
