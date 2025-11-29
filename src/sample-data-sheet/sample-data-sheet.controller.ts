@@ -137,19 +137,19 @@ export class SampleDataSheetController {
         };
     }
 
-    @Get('by-inspection/pdf/:inspectionDetailId')
+    @Get('by-inspection/pdf/:sdsId')
     @UseGuards(JwtAuthGuard)
     async getByInspectionDetailPdf(
-        @Param('inspectionDetailId') inspectionDetailId: string,
+        @Param('sdsId') sdsId: string,
         @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
         @Res() res: Response
     ) {
-        const id = Number(inspectionDetailId);
+        const id = Number(sdsId);
         if (!id || Number.isNaN(id)) {
             throw new BadRequestException('Invalid inspection detail id');
         }
 
-        const sheet = await this.sampleDataSheetService.findByInspectionDetailId(id);
+        const sheet = await this.sampleDataSheetService.findByInspectionDetailForSdsId(id);
         if (!sheet) {
             throw new NotFoundException('Sample Data Sheet not found');
         }
@@ -174,7 +174,7 @@ export class SampleDataSheetController {
             throw new BadRequestException('Invalid inspection detail id');
         }
 
-        const sheet = await this.sampleDataSheetService.findByInspectionDetailId(id);
+        const sheet = await this.sampleDataSheetService.findByInspectionDetailForSdsId(id);
         if (!sheet) {
             throw new NotFoundException('Sample Data Sheet not found');
         }

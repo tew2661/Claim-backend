@@ -223,6 +223,21 @@ export class InspectionDetailController {
     };
   }
 
+  @Get('items/:inspectionDetailId')
+  @UseGuards(JwtAuthGuard)
+  async getItems(@Param('inspectionDetailId') inspectionDetailId: string) {
+    const id = parseInt(inspectionDetailId, 10);
+    if (isNaN(id)) {
+      throw new BadRequestException('inspectionDetailId must be a number');
+    }
+
+    const data = await this.inspectionDetailService.listInspectionItems(id);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get('special-request/:inspectionDetailId')
   @UseGuards(JwtAuthGuard)
   async getSpecialRequests(@Param('inspectionDetailId') inspectionDetailId: string) {

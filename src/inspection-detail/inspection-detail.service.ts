@@ -1,12 +1,16 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Inject, forwardRef, NotAcceptableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
-import { InspectionDetailEntity, ActiveStatus, SupplierEditStatus } from './entities/inspection-detail.entity';
+import { InspectionDetailEntity, ActiveStatus, SupplierEditStatus, PartStatus } from './entities/inspection-detail.entity';
 import { InspectionItemEntity } from './entities/inspection-item.entity';
 import { InspectionSpecialRequestEntity, SpecialRequestStatus } from './entities/inspection-special-request.entity';
 import { SupplierService } from 'src/supplier/supplier.service';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { SdsLogService } from 'src/sample-data-sheet/sds-log.service';
+import { SampleDataSheetEntity } from 'src/sample-data-sheet/entities/sample-data-sheet.entity';
+import { SampleDataSheetService } from 'src/sample-data-sheet/sample-data-sheet.service';
+import { CreateSampleDataSheetDto, CreateSampleDataSheetRowDto } from 'src/sample-data-sheet/dto/create-sample-data-sheet.dto';
+import * as moment from 'moment';
 
 export interface CreateInspectionItemDto {
   no: number;
@@ -33,7 +37,7 @@ export interface CreateInspectionDetailDto {
 
 export interface CreateSpecialRequestDto {
   inspectionDetailId: number;
-  specialRequestItems: string[];
+  specialRequestItems: number[];
   qty: number;
   cpCpk: string;
   dueDate: Date;
@@ -67,6 +71,7 @@ export class InspectionDetailService {
     private readonly supplierService: SupplierService,
     @Inject(forwardRef(() => SdsLogService))
     private readonly sdsLogService: SdsLogService,
+    private readonly sampleDataSheetService: SampleDataSheetService,
   ) { }
 
   async create(dto: CreateInspectionDetailDto, actionBy?: UsersEntity) {
@@ -273,7 +278,8 @@ export class InspectionDetailService {
     const qb = this.inspectionDetailRepo
       .createQueryBuilder('d')
       .leftJoinAndSelect('d.inspectionItems', 'items')
-      .where('d.activeRow = :active', { active: 'Y' });
+      .where('d.activeRow = :active', { active: 'Y' })
+      .andWhere('d.copyId IS NULL');
 
     this.applyFiltersToQuery(qb, filters);
     return qb;
@@ -383,9 +389,54 @@ export class InspectionDetailService {
   }
 
   async createSpecialRequest(dto: CreateSpecialRequestDto, actionBy?: UsersEntity) {
+    const stringSpecialRequestItems = JSON.stringify(dto.specialRequestItems || [])
+
+    const inspectionDetail = await this.inspectionDetailRepo.findOne({
+      where: { id: dto.inspectionDetailId },
+    });
+
+    if (!inspectionDetail) {
+      throw new NotFoundException('Inspection detail not found');
+    }
+
+    if (inspectionDetail.partStatus == PartStatus.Inactive) {
+      throw new BadRequestException('Cannot create special request because the part status is not active');
+    }
+
+    if (inspectionDetail.supplierEditStatus == SupplierEditStatus.Unlocked) {
+      throw new BadRequestException('Cannot create special request because the status is not yet locked');
+    }
+
+    const inspectionItems = await this.inspectionItemRepo.find({
+      where: { inspectionDetailId: dto.inspectionDetailId },
+    });
+
+    const copyInspectionDetail = this.inspectionDetailRepo.create({
+      ...inspectionDetail,
+      id: null,
+      dueDate: dto.dueDate,
+      sdsCreated: false,
+      supplierEditStatus: SupplierEditStatus.Locked,
+      partStatus: PartStatus.Active,
+      copyId: inspectionDetail.id,
+    });
+
+    const savedCopyInspectionDetail = await this.inspectionDetailRepo.save(copyInspectionDetail);
+
+
+    const copyInspectionItems = inspectionItems
+      .filter((item) => (dto.specialRequestItems || []).find((s) => s === item.id))
+      .map((item) => ({
+        ...item,
+        id: null,
+        inspectionDetailId: savedCopyInspectionDetail.id,
+      }));
+
+    await this.inspectionItemRepo.save(copyInspectionItems);
+
     const entity = this.specialRequestRepo.create({
-      inspectionDetailId: dto.inspectionDetailId,
-      specialRequestItems: JSON.stringify(dto.specialRequestItems || []),
+      inspectionDetailId: savedCopyInspectionDetail.id,
+      specialRequestItems: stringSpecialRequestItems,
       qty: dto.qty,
       cpCpk: dto.cpCpk,
       dueDate: dto.dueDate,
@@ -398,16 +449,11 @@ export class InspectionDetailService {
 
     const savedRequest = await this.specialRequestRepo.save(entity);
 
-    // Get inspection detail for part number
-    const inspectionDetail = await this.inspectionDetailRepo.findOne({
-      where: { id: dto.inspectionDetailId },
-    });
-
     if (inspectionDetail) {
       // Create log for special request
       await this.sdsLogService.createLog({
         menu: 'Inspection Detail',
-        sdsInspectionDetailId: inspectionDetail.id,
+        sdsInspectionDetailId: savedCopyInspectionDetail.id,
         partNo: inspectionDetail.partNo,
         sdsMonthYear: null,
         action: 'Special Request',
@@ -442,6 +488,29 @@ export class InspectionDetailService {
       status: record.status,
       comments: record.comments,
       createdAt: record.createdAt,
+    }));
+  }
+
+  async listInspectionItems(inspectionDetailId: number) {
+    const records = await this.inspectionItemRepo.find({
+      where: {
+        inspectionDetailId,
+      },
+      order: {
+        id: 'ASC',
+      },
+    });
+
+    return records.map((record) => ({
+      id: record.id,
+      inspectionDetailId: record.inspectionDetailId,
+      no: record.no,
+      measuringItem: record.measuringItem,
+      specification: record.specification,
+      tolerancePlus: record.tolerancePlus,
+      toleranceMinus: record.toleranceMinus,
+      inspectionInstrument: record.inspectionInstrument,
+      rank: record.rank,
     }));
   }
 

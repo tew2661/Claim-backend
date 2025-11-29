@@ -113,6 +113,9 @@ export class InspectionDetailEntity {
     @Column({ name: 'updated_by', type: 'int', nullable: true })
     updatedBy: number;
 
+    @Column({ name: 'copy_id', type: 'int', nullable: true })
+    copyId: number;
+
     // Relations
     @ManyToOne(() => SupplierEntity, { nullable: true })
     @JoinColumn({ name: 'supplier_code', referencedColumnName: 'supplierCode' })

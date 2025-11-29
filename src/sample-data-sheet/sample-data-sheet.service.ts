@@ -350,7 +350,7 @@ export class SampleDataSheetService {
                AND la_sds.document_type = 'SDS'
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
-            WHERE detail.active_row = 'Y'
+            WHERE detail.active_row = 'Y' AND detail.deleted_at IS NULL
             
         `;
 
@@ -537,7 +537,7 @@ export class SampleDataSheetService {
                AND la_sds.document_type = 'SDS'
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
-            WHERE detail.active_row = 'Y'
+            WHERE detail.active_row = 'Y' AND detail.deleted_at IS NULL
         `;
 
         const rawResults = await this.dataSource.query(query, queryParams);
@@ -761,7 +761,7 @@ export class SampleDataSheetService {
                     ELSE 0
                 END AS has_delay
             FROM dbo.sample_data_sheets sheet
-            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
+            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
             LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
             LEFT JOIN dbo.sds_inspection_special_request sp
                 ON sp.inspection_detail_id = detail.id
@@ -877,7 +877,7 @@ export class SampleDataSheetService {
         let countQuery = `
             SELECT COUNT(*) as total
             FROM dbo.sample_data_sheets sheet
-            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id
+            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
             WHERE 1=1
         `;
 
@@ -1060,7 +1060,7 @@ export class SampleDataSheetService {
                     sheet.loop,
                     1 as has_sheet
                 FROM dbo.sample_data_sheets sheet
-                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id
+                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
                 
                 UNION ALL
                 
@@ -1084,7 +1084,7 @@ export class SampleDataSheetService {
                     1 as loop,
                     0 as has_sheet
                 FROM dbo.sds_inspection_detail detail
-                WHERE detail.sds_created = 0
+                WHERE detail.sds_created = 0 AND detail.deleted_at IS NULL 
                   ${filters.pageCreatedSds ? `AND detail.part_status = 'Active' AND detail.supplier_edit_status = 'Locked'` : ''}
                   AND detail.active_row = 'Y'
             )
@@ -1258,7 +1258,7 @@ export class SampleDataSheetService {
                     detail.due_date,
                     sheet.inspection_detail_id
                 FROM dbo.sample_data_sheets sheet
-                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id
+                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
                 
                 UNION ALL
                 
@@ -1275,6 +1275,8 @@ export class SampleDataSheetService {
                 FROM dbo.sds_inspection_detail detail
                 WHERE detail.sds_created = 0
                   AND detail.active_row = 'Y'
+                  AND detail.deleted_at IS NULL
+                  ${filters.pageCreatedSds ? `AND detail.part_status = 'Active' AND detail.supplier_edit_status = 'Locked'` : ''} 
             )
             SELECT COUNT(*) as total
             FROM combined_data cd
@@ -1540,7 +1542,7 @@ export class SampleDataSheetService {
                 OFFSET ${skip} ROWS FETCH NEXT ${limit} ROWS ONLY
             ) AS sum_sds
             JOIN sample_data_sheets AS sds ON sds.id = sum_sds.id
-            LEFT JOIN sds_inspection_detail AS detail ON detail.id = sds.inspection_detail_id
+            LEFT JOIN sds_inspection_detail AS detail ON detail.id = sds.inspection_detail_id AND detail.deleted_at IS NULL
             LEFT JOIN latest l1_sdr ON l1_sdr.sample_data_sheet_id = sds.id AND l1_sdr.loop = sds.loop AND l1_sdr.document_type = 'SDR' AND l1_sdr.role = 'Checker 1' AND l1_sdr.rn = 1
             LEFT JOIN latest l1_sds ON l1_sds.sample_data_sheet_id = sds.id AND l1_sds.loop = sds.loop AND l1_sds.document_type = 'SDS' AND l1_sds.role = 'Checker 1' AND l1_sds.rn = 1
             LEFT JOIN latest l2_sdr ON l2_sdr.sample_data_sheet_id = sds.id AND l2_sdr.loop = sds.loop AND l2_sdr.document_type = 'SDR' AND l2_sdr.role = 'Checker 2' AND l2_sdr.rn = 1
@@ -1639,7 +1641,7 @@ export class SampleDataSheetService {
         return this.mapSheet(sheet);
     }
 
-    async findByInspectionDetailId(id: number): Promise<SampleDataSheetResponse | null> {
+    async findByInspectionDetailForSdsId(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
             where: { id },
             relations: ['rows', 'rows.samples'],
