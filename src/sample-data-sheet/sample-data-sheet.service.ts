@@ -275,6 +275,7 @@ export class SampleDataSheetService {
                 detail.updated_by,
                 sheet.id as sheet_id,
                 sheet.loop as sheet_loop,
+                sheet.production_08_2025,
                 ISNULL(sheet.sdr_date, detail.due_date) AS due_date,
                 sp.due_date AS due_date_special,
                 sp.id AS special_id,
@@ -578,7 +579,9 @@ export class SampleDataSheetService {
             }
 
             let checker1Status = 'Pending';
-            if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+            if (row.production_08_2025 === 'No' && checker3Approved) {
+                checker1Status = 'Completed';
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker1Status = 'Supplier Pending';
             } else if ((row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') &&
                 (row.checker2ApprovedSdr === 'Approved' && row.checker2ApprovedSds === 'Approved') &&
@@ -918,7 +921,9 @@ export class SampleDataSheetService {
             }
 
             let checker1Status = 'Pending';
-            if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+            if (row.production_08_2025 === 'No' && checker3Approved) {
+                checker1Status = 'Completed';
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker1Status = 'Supplier Pending';
             } else if (checker1Approved && checker2Approved && checker3Approved) {
                 checker1Status = 'Completed';
@@ -1067,6 +1072,7 @@ export class SampleDataSheetService {
                     sheet.part_name,
                     sheet.model,
                     sheet.inspection_detail_id,
+                    sheet.production_08_2025,
                     sheet.sdr_date,
                     detail.part_status,
                     detail.supplier_edit_status,
@@ -1092,6 +1098,7 @@ export class SampleDataSheetService {
                     detail.model,
                     detail.id as inspection_detail_id,
                     NULL as sdr_date,
+                    NULL as production_08_2025,
                     detail.part_status,
                     detail.supplier_edit_status,
                     detail.sds_created,
@@ -1372,7 +1379,9 @@ export class SampleDataSheetService {
             }
 
             let checker1Status = 'Pending';
-            if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
+            if (row.production_08_2025 === 'No' && checker3Approved) {
+                checker1Status = 'Completed';
+            } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker1Status = 'Supplier Pending';
             } else if (checker1Approved && checker2Approved && checker3Approved) {
                 checker1Status = 'Completed';
@@ -2001,11 +2010,23 @@ export class SampleDataSheetService {
         // Determine user role from approveRole parameter
         let role: SdsApprovalRole = SdsApprovalRole.SUPPLIER;
         if (dto.approveRole === 'checker1') {
-            role = SdsApprovalRole.CHECKER1;
+            if (sheet.production082025 == 'Yes') {
+                role = SdsApprovalRole.CHECKER1;
+            } else {
+                role = SdsApprovalRole.APPROVER;
+            }
         } else if (dto.approveRole === 'checker2') {
-            role = SdsApprovalRole.CHECKER2;
+            if (sheet.production082025 == 'Yes') {
+                role = SdsApprovalRole.CHECKER2;
+            } else {
+                throw new BadRequestException('Checker2 approval is not allowed');
+            }
         } else if (dto.approveRole === 'approver') {
-            role = SdsApprovalRole.APPROVER;
+            if (sheet.production082025 == 'Yes') {
+                role = SdsApprovalRole.APPROVER;
+            } else {
+                throw new BadRequestException('Approver approval is not allowed');
+            }
         } else if (dto.approveRole === 'supplier') {
             role = SdsApprovalRole.SUPPLIER;
         }
@@ -2035,22 +2056,24 @@ export class SampleDataSheetService {
             }
 
             await this.approvalRepo.save(sdrApproval);
+            if (sheet.production082025 == 'Yes') {
+                // Create log for SDR approval
+                const actionText = sdrAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+                const roleText = role.charAt(0).toUpperCase() + role.slice(1);
+                await this.sdsLogRepo.save({
+                    menu: 'SDS Approval',
+                    sdsInspectionDetailId: sheet.inspectionDetailId,
+                    sampleDataSheetId: sheet.id,
+                    partNo: sheet.partNo,
+                    sdsMonthYear,
+                    action: actionText,
+                    actionRole: roleText,
+                    actionBy: actionByUser.name || 'Unknown',
+                    actionDate: new Date(),
+                    remark: ((dto.remark || '') + (`\n#${SdsDocumentType.SDR}`)).trim(),
+                });
+            }
 
-            // Create log for SDR approval
-            const actionText = sdrAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
-            const roleText = role.charAt(0).toUpperCase() + role.slice(1);
-            await this.sdsLogRepo.save({
-                menu: 'SDS Approval',
-                sdsInspectionDetailId: sheet.inspectionDetailId,
-                sampleDataSheetId: sheet.id,
-                partNo: sheet.partNo,
-                sdsMonthYear,
-                action: actionText,
-                actionRole: roleText,
-                actionBy: actionByUser.name || 'Unknown',
-                actionDate: new Date(),
-                remark: ((dto.remark || '') + (`\n#${SdsDocumentType.SDR}`)).trim(),
-            });
         }
 
         // Save SDS approval log
@@ -2094,6 +2117,7 @@ export class SampleDataSheetService {
                 actionDate: new Date(),
                 remark: ((dto.remark || '') + (`\n#${SdsDocumentType.SDS}`)).trim(),
             });
+
         }
     }
 

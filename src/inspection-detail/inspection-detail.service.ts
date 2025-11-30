@@ -7,18 +7,15 @@ import { InspectionSpecialRequestEntity, SpecialRequestStatus } from './entities
 import { SupplierService } from 'src/supplier/supplier.service';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { SdsLogService } from 'src/sample-data-sheet/sds-log.service';
-import { SampleDataSheetEntity } from 'src/sample-data-sheet/entities/sample-data-sheet.entity';
 import { SampleDataSheetService } from 'src/sample-data-sheet/sample-data-sheet.service';
-import { CreateSampleDataSheetDto, CreateSampleDataSheetRowDto } from 'src/sample-data-sheet/dto/create-sample-data-sheet.dto';
 import * as moment from 'moment';
 import { join, normalize } from 'path';
 import { readFileSync } from 'fs';
-import { PDFDocument, PDFPage, degrees, rgb } from 'pdf-lib';
-import { Response } from 'express';
-import * as ExcelJS from 'exceljs';
+import { PDFDocument, rgb } from 'pdf-lib';
 import * as fontkit from '@pdf-lib/fontkit';
 import { SampleDataSheetResponse } from 'src/sample-data-sheet/interfaces/sample-data-sheet-response.interface';
 import { configPath } from 'src/path-files-config';
+import { EmailService } from 'src/email/email.service';
 
 export interface CreateInspectionItemDto {
   no: number;
@@ -80,6 +77,7 @@ export class InspectionDetailService {
     @Inject(forwardRef(() => SdsLogService))
     private readonly sdsLogService: SdsLogService,
     private readonly sampleDataSheetService: SampleDataSheetService,
+    private readonly emailService: EmailService,
   ) { }
 
   async create(dto: CreateInspectionDetailDto, actionBy?: UsersEntity) {
@@ -470,6 +468,29 @@ export class InspectionDetailService {
         actionDate: new Date(),
         remark: dto.comments || null,
       });
+
+      // Send Email to Supplier for Special Request
+      try {
+        const supplier = await this.supplierService.findByCode(inspectionDetail.supplierCode);
+        if (supplier && supplier.email && supplier.email.length > 0) {
+          const subject = `Special Request Created: ${inspectionDetail.partNo}`;
+          const html = `
+            <p>Dear Supplier,</p>
+            <p>A Special Request has been created for Part No: <strong>${inspectionDetail.partNo}</strong>.</p>
+            <p><strong>Comments:</strong> ${dto.comments || '-'}</p>
+            <p>Please log in to the system to review the details.</p>
+            <br>
+            <p>Best regards,</p>
+            <p>Sample Data Sheet System</p>
+            `;
+          // Send to all emails in the array
+          for (const email of supplier.email) {
+            await this.emailService.sendEmail(email, subject, html);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send email for special request:', error);
+      }
     }
 
     return savedRequest;
@@ -610,5 +631,55 @@ export class InspectionDetailService {
     // fs.writeFileSync(savetemp, pdfBytesFinal);
 
     return pdfBytesFinal;
+  }
+
+  async findMonthlyDelayedItems() {
+    const now = new Date();
+    // Check if today is 26th or later
+    if (now.getDate() < 26) {
+      return [];
+    }
+
+    // Find items due this month that are not yet created (sdsCreated = false)
+    // and active
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    return this.inspectionDetailRepo.createQueryBuilder('d')
+      .where('d.activeRow = :active', { active: 'Y' })
+      .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
+      .andWhere('d.dueDate BETWEEN :start AND :end', { start: startOfMonth, end: endOfMonth })
+      .getMany();
+  }
+
+  async findSpecialRequestDelayedItems() {
+    const now = new Date();
+
+    // Find special requests that are pending and due date is passed
+    return this.inspectionDetailRepo.createQueryBuilder('d')
+      .innerJoinAndSelect('d.specialRequest', 's') // Join to get supplier info later
+      .where('s.activeRow = :active', { active: 'Y' })
+      .andWhere('s.partStatus = :status', { status: 'Active' })
+      .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
+      .andWhere('s.dueDate < :now', { now })
+      .getMany();
+  }
+
+  async findActiveInspectionDetails() {
+    const now = new Date();
+
+    // Find items due this month that are not yet created (sdsCreated = false)
+    // and active
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    return this.inspectionDetailRepo.createQueryBuilder('d')
+      .leftJoinAndSelect('d.specialRequest', 's') // Join to check if it's NOT a special request
+      .where('d.activeRow = :active', { active: 'Y' })
+      .andWhere('d.partStatus = :status', { status: 'Active' })
+      .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
+      .andWhere('s.id IS NULL')
+      .andWhere('d.dueDate BETWEEN :start AND :end', { start: startOfMonth, end: endOfMonth })
+      .getMany();
   }
 }

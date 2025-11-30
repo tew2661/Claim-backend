@@ -55,21 +55,21 @@ export class SupplierService {
     }
 
     // Get All Suppliers
-    findAll(query: GetSupplierDto):Promise<SupplierEntity[]> {
-        return this.supplierRepository.find({ 
+    findAll(query: GetSupplierDto): Promise<SupplierEntity[]> {
+        return this.supplierRepository.find({
             skip: query.offset,
             take: query.limit,
             where: {
-                ...query.supplierCode ? { supplierCode: Like(`%${query.supplierCode || ''}%`)} : {} ,
-                ...query.supplierName ? { supplierName: Like(`%${query.supplierName || ''}%`)} : {} ,
+                ...query.supplierCode ? { supplierCode: Like(`%${query.supplierCode || ''}%`) } : {},
+                ...query.supplierName ? { supplierName: Like(`%${query.supplierName || ''}%`) } : {},
                 activeRow: ActiveStatus.YES,
             },
         });
     }
 
-    findAllForDropdown():Promise<SupplierEntity[]> {
-        return this.supplierRepository.find({ 
-            select: ['supplierCode' , 'supplierName' ],
+    findAllForDropdown(): Promise<SupplierEntity[]> {
+        return this.supplierRepository.find({
+            select: ['supplierCode', 'supplierName'],
             where: {
                 activeRow: ActiveStatus.YES,
             },
@@ -79,8 +79,8 @@ export class SupplierService {
     count(query: GetSupplierDto): Promise<number> {
         return this.supplierRepository.count({
             where: {
-                ...query.supplierCode ? { supplierCode: Like(`%${query.supplierCode || ''}%`)} : {} ,
-                ...query.supplierName ? { supplierName: Like(`%${query.supplierName || ''}%`)} : {} ,
+                ...query.supplierCode ? { supplierCode: Like(`%${query.supplierCode || ''}%`) } : {},
+                ...query.supplierName ? { supplierName: Like(`%${query.supplierName || ''}%`) } : {},
                 activeRow: ActiveStatus.YES,
             },
         });
@@ -93,6 +93,12 @@ export class SupplierService {
             throw new NotFoundException('ไม่พบ supplier id นี้')
         }
         return data
+    }
+
+    // Get Supplier by Code
+    async findByCode(code: string): Promise<SupplierEntity> {
+        const data = await this.supplierRepository.findOne({ where: { supplierCode: code, activeRow: ActiveStatus.YES } });
+        return data;
     }
 
     // Update Supplier
@@ -110,7 +116,7 @@ export class SupplierService {
             if (checkCode) {
                 throw new ConflictException('Supplier Code นี้มีอยู่แล้ว')
             }
-    
+
             updateSupplier.supplierCode = supplier.supplierCode
         }
 
@@ -137,15 +143,15 @@ export class SupplierService {
 
         const user = await this.usersRepository.findOne({ where: { supplier: { id: id } } })
         const updateUserDto: UpdateUserDto = {
-            ...supplier.supplierCode ? { code: supplier.supplierCode } : {} ,
-            ...supplier.supplierName ? { name: supplier.supplierName }: {},
-            ...supplier.email ? { email: supplier.email.length ? supplier.email[0] : "" }: {},
+            ...supplier.supplierCode ? { code: supplier.supplierCode } : {},
+            ...supplier.supplierName ? { name: supplier.supplierName } : {},
+            ...supplier.email ? { email: supplier.email.length ? supplier.email[0] : "" } : {},
             ...supplier.password ? { password: supplier.password } : {}
         }
         if (Object.keys(updateUserDto).length) {
-            this.usersService.update(user.id, updateUserDto, actionBy , undefined, true);
+            this.usersService.update(user.id, updateUserDto, actionBy, undefined, true);
         }
-        
+
         return await this.findOne(id);
     }
 

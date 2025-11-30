@@ -14,6 +14,7 @@ import { EmailModule } from './email/email.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InspectionDetailModule } from './inspection-detail/inspection-detail.module';
 import { SampleDataSheetModule } from './sample-data-sheet/sample-data-sheet.module';
+import { CronJobsModule } from './cron-jobs/cron-jobs.module';
 
 @Module({
   imports: [
@@ -25,12 +26,13 @@ import { SampleDataSheetModule } from './sample-data-sheet/sample-data-sheet.mod
     AuthModule,
     UsersModule,
     NotificationModule,
-  SupplierModule,
+    SupplierModule,
     QprModule,
     LogsModule,
     EmailModule,
-  InspectionDetailModule,
-  SampleDataSheetModule,
+    InspectionDetailModule,
+    SampleDataSheetModule,
+    CronJobsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
