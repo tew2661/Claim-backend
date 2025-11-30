@@ -11,6 +11,14 @@ import { SampleDataSheetEntity } from 'src/sample-data-sheet/entities/sample-dat
 import { SampleDataSheetService } from 'src/sample-data-sheet/sample-data-sheet.service';
 import { CreateSampleDataSheetDto, CreateSampleDataSheetRowDto } from 'src/sample-data-sheet/dto/create-sample-data-sheet.dto';
 import * as moment from 'moment';
+import { join, normalize } from 'path';
+import { readFileSync } from 'fs';
+import { PDFDocument, PDFPage, degrees, rgb } from 'pdf-lib';
+import { Response } from 'express';
+import * as ExcelJS from 'exceljs';
+import * as fontkit from '@pdf-lib/fontkit';
+import { SampleDataSheetResponse } from 'src/sample-data-sheet/interfaces/sample-data-sheet-response.interface';
+import { configPath } from 'src/path-files-config';
 
 export interface CreateInspectionItemDto {
   no: number;
@@ -520,5 +528,87 @@ export class InspectionDetailService {
       supplierCode: supplier.supplierCode,
       supplierName: supplier.supplierName,
     }));
+  }
+
+  async stamptSignature(sheet: SampleDataSheetResponse, actionBy: UsersEntity) {
+    const baseDir = join(process.cwd(), configPath.pathUploadInspectionDetail);
+    const targetPath = normalize(join(baseDir, sheet.sdrReportFile));
+    const pdfBytes = readFileSync(targetPath);
+    const oldPdfDoc = await PDFDocument.load(pdfBytes);
+
+    const fontBytes = readFileSync(join(__dirname, '..', '..', '/files-templates/fonts/NotoSansThai-Medium.ttf'));
+    oldPdfDoc.registerFontkit(fontkit);
+
+    // add file png
+    const pngBytes = readFileSync(join(__dirname, '..', '..', '/files-templates/sds-pdf/approved.png'));
+    const pngImage = await oldPdfDoc.embedPng(pngBytes);
+
+    const oldfont = await oldPdfDoc.embedFont(fontBytes);
+
+    if (sheet.id) {
+      const approval1 = sheet.approvals.find((approval) => approval.action == 'Approved' && approval.role == 'Checker 1' && sheet.loop == approval.loop);
+      const approval2 = sheet.approvals.find((approval) => approval.action == 'Approved' && approval.role == 'Checker 2' && sheet.loop == approval.loop);
+      const approval3 = sheet.approvals.find((approval) => approval.action == 'Approved' && approval.role == 'Approver' && sheet.loop == approval.loop);
+      for (let pageIndex = 0; pageIndex < oldPdfDoc.getPageCount(); pageIndex++) {
+        const { width, height } = oldPdfDoc.getPage(pageIndex).getSize();
+        const page = oldPdfDoc.getPage(pageIndex);
+        page.drawImage(pngImage, {
+          x: width - 220,
+          y: height - 340,
+          width: 200,
+          height: 100,
+        });
+
+        if (approval3) {
+          const drawWrappedText = (text: string, x: number, y: number) => {
+            const maxWidth = 60;
+            const fontSize = 9;
+            if (oldfont.widthOfTextAtSize(text, fontSize) <= maxWidth) {
+              page.drawText(text, { x, y, size: fontSize, font: oldfont, color: rgb(0, 0.6, 0.35) });
+            } else {
+              const words = text.split(' ');
+              let line1 = '';
+              let line2 = '';
+              for (const word of words) {
+                if (oldfont.widthOfTextAtSize((line1 + word).trim(), fontSize) < maxWidth) {
+                  line1 += (line1 ? ' ' : '') + word;
+                } else {
+                  line2 += (line2 ? ' ' : '') + word;
+                }
+              }
+              page.drawText(line1, { x, y: y + 3, size: fontSize, font: oldfont, color: rgb(0, 0.6, 0.35) });
+              page.drawText(line2, { x, y: y - 7, size: fontSize, font: oldfont, color: rgb(0, 0.6, 0.35) });
+            }
+          };
+
+          drawWrappedText(approval1?.actionByUser?.name || '', width - 215, height - 320);
+          drawWrappedText(approval2?.actionByUser?.name || '', width - 145, height - 320);
+          drawWrappedText(approval3?.actionByUser?.name || '', width - 80, height - 320);
+
+          page.drawText(approval1.actionDate ? moment(approval1.actionDate).format('DD      MM      YYYY') : '', {
+            x: width - 180,
+            y: height - 275,
+            size: 11,
+            font: oldfont,
+            color: rgb(0, 0.6, 0.35)
+          });
+        }
+
+      }
+    }
+
+
+    oldPdfDoc.setTitle(`sdrReportFile-${sheet.partNo} -${sheet.partName} `);
+    oldPdfDoc.setAuthor(`${[...new Set(['System'])].join(',')} `);
+    oldPdfDoc.setSubject('Sample Data Sheet');
+    oldPdfDoc.setKeywords(['Sample Data Sheet']);
+    oldPdfDoc.setProducer(`Sample Data Sheet`);
+    oldPdfDoc.setCreationDate(new Date());
+
+    const pdfBytesFinal = await oldPdfDoc.save();
+    // const savetemp = join(__dirname, '..', '..', `/ files - templates / sds - pdf / temp - ${ sheet.partNo } -${ sheet.partName } -${ new Date().toISOString() }.pdf`);
+    // fs.writeFileSync(savetemp, pdfBytesFinal);
+
+    return pdfBytesFinal;
   }
 }

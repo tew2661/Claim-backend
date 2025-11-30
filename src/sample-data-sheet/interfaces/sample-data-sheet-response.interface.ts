@@ -1,3 +1,5 @@
+import { UsersEntity } from "src/users/entities/users.entity";
+
 export interface SampleDataSheetSampleResponse {
     no: number;
     value: string;
@@ -33,7 +35,7 @@ export interface SampleDataSheetResponse {
     sdrFile: string | null;
     sdrReportFile: string | null;
     inspectionDetailId: number | null;
-
+    loop: number;
     remark: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -43,8 +45,10 @@ export interface SampleDataSheetResponse {
 
 export interface SampleDataSheetApprovalResponse {
     id: number;
+    actionByUser: UsersEntity;
     action: string;
     role: string;
+    loop: number;
     documentType: string;
     remark: string | null;
     actionDate: Date;

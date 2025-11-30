@@ -1660,11 +1660,14 @@ export class SampleDataSheetService {
             createdAt: sheet.createdAt,
             updatedAt: sheet.updatedAt,
             remark: sheet.remark ?? null,
+            loop: sheet.loop,
             sdrData: rows,
             approvals: (sheet.approvals || []).map(approval => ({
                 id: approval.id,
+                actionByUser: approval.actionByUser,
                 action: approval.action,
                 role: approval.role,
+                loop: approval.loop,
                 documentType: approval.documentType,
                 remark: approval.remark,
                 actionDate: approval.actionDate,
@@ -1689,7 +1692,7 @@ export class SampleDataSheetService {
     async findByInspectionDetailForSdsId(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
             where: { id },
-            relations: ['rows', 'rows.samples', 'approvals'],
+            relations: ['rows', 'rows.samples', 'approvals', 'approvals.actionByUser'],
         });
 
         if (!sheet) {
@@ -1717,7 +1720,6 @@ export class SampleDataSheetService {
         pdfDoc.registerFontkit(fontkit);
 
         const font = await pdfDoc.embedFont(fontBytes);
-
         const oldfont = await oldPdfDoc.embedFont(fontBytes);
 
         const { width: oldWidth, height: oldHeight } = pageOld.getSize();

@@ -23,6 +23,7 @@ import { JwtAuthGuard } from 'src/middlewares/jwt-auth.middleware';
 import { configPath } from 'src/path-files-config';
 import { Response, Request } from 'express';
 import { UsersEntity } from 'src/users/entities/users.entity';
+import { SampleDataSheetService } from 'src/sample-data-sheet/sample-data-sheet.service';
 
 const ensureUploadDir = (dir: string) => {
   if (!fs.existsSync(dir)) {
@@ -47,7 +48,10 @@ const allowedFileTypes = ['application/pdf'];
 
 @Controller('inspection-detail')
 export class InspectionDetailController {
-  constructor(private readonly inspectionDetailService: InspectionDetailService) { }
+  constructor(
+    private readonly inspectionDetailService: InspectionDetailService,
+    private readonly sampleDataSheetService: SampleDataSheetService,
+  ) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -251,6 +255,34 @@ export class InspectionDetailController {
       success: true,
       data,
     };
+  }
+
+  @Get('files/stampt-signature/:sdsId')
+  @UseGuards(JwtAuthGuard)
+  async downloadFileStamptSignature(
+    @Param('sdsId') sdsId: number,
+    @Res() res: Response,
+    @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } }
+  ) {
+    if (!sdsId || Number.isNaN(sdsId)) {
+      throw new BadRequestException('Invalid inspection detail id');
+    }
+
+    const sheet = await this.sampleDataSheetService.findByInspectionDetailForSdsId(sdsId);
+    if (!sheet) {
+      throw new NotFoundException('Sample Data Sheet not found');
+    }
+
+    const pdfBytes1 = await this.inspectionDetailService.stamptSignature(sheet, actionBy);
+    const rawFileName = `${sheet.sdrReportFile}`;
+    const sanitizedFileName = rawFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const encodedFileName = encodeURIComponent(rawFileName);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=${sanitizedFileName}.pdf`);
+    res.setHeader('Access-Control-Expose-Headers', 'File-Name, Content-Disposition');
+    res.setHeader('File-Name', `${encodedFileName}.pdf`);
+    res.send(Buffer.from(pdfBytes1));
   }
 
   @Get('files/:filename')
