@@ -11,7 +11,7 @@ export interface ListInspectionDetailsQueryDto {
     limit?: number;
     checkerLevel?: 1 | 2 | 3;
     hasDelay?: boolean;
-    countAll?: boolean;
+    dashboard?: boolean;
     notHasDelay?: boolean;
     pageCreatedSds?: boolean;
 }

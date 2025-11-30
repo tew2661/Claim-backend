@@ -286,9 +286,9 @@ export class SampleDataSheetService {
                 l3_sds.action AS checker3ApprovedSds,
                 la_sds.action_date AS submitted,
                 CASE 
-                    WHEN sheet.sdr_date IS NOT NULL THEN 
+                    WHEN COALESCE(sheet.sdr_date, detail.due_date) IS NOT NULL THEN 
                         CASE 
-                            WHEN DATEADD(day, 1, CAST(sheet.sdr_date AS DATE)) <= (
+                            WHEN DATEADD(day, 1, CAST(COALESCE(sheet.sdr_date, detail.due_date) AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -748,9 +748,9 @@ export class SampleDataSheetService {
                 la_sds.action_date AS submitted,
                 sp.id AS special_id,
                 CASE 
-                    WHEN sheet.sdr_date IS NOT NULL THEN 
+                    WHEN COALESCE(sheet.sdr_date, detail.due_date) IS NOT NULL THEN 
                         CASE 
-                            WHEN DATEADD(day, 1, CAST(sheet.sdr_date AS DATE)) <= (
+                            WHEN DATEADD(day, 1, CAST(COALESCE(sheet.sdr_date, detail.due_date) AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -1099,9 +1099,9 @@ export class SampleDataSheetService {
                 l3_sds.action AS checker3ApprovedSds,
                 la_sds.action_date AS submitted,
                 CASE 
-                    WHEN cd.sdr_date IS NOT NULL THEN 
+                    WHEN COALESCE(cd.sdr_date, cd.due_date) IS NOT NULL THEN 
                         CASE 
-                            WHEN DATEADD(day, 1, CAST(cd.sdr_date AS DATE)) <= (
+                            WHEN DATEADD(day, 1, CAST(COALESCE(cd.sdr_date, cd.due_date) AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -1218,9 +1218,9 @@ export class SampleDataSheetService {
         if (filters.hasDelay) {
             querys += ` AND (
                 CASE 
-                    WHEN cd.sdr_date IS NOT NULL THEN 
+                    WHEN COALESCE(cd.sdr_date, cd.due_date) IS NOT NULL THEN 
                         CASE 
-                            WHEN DATEADD(day, 1, CAST(cd.sdr_date AS DATE)) <= (
+                            WHEN DATEADD(day, 1, CAST(COALESCE(cd.sdr_date, cd.due_date) AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -1234,9 +1234,9 @@ export class SampleDataSheetService {
         } else if (filters.notHasDelay) {
             querys += ` AND (
                 CASE 
-                    WHEN cd.sdr_date IS NOT NULL THEN 
+                    WHEN COALESCE(cd.sdr_date, cd.due_date) IS NOT NULL THEN 
                         CASE 
-                            WHEN DATEADD(day, 1, CAST(cd.sdr_date AS DATE)) <= (
+                            WHEN DATEADD(day, 1, CAST(COALESCE(cd.sdr_date, cd.due_date) AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -1324,7 +1324,7 @@ export class SampleDataSheetService {
         `;
 
         const rawResults = await this.dataSource.query(query, queryParams);
-        const countResult = await this.dataSource.query(countQuery + (filters.countAll ? queryCount : querys).replace(/cd\./g, 'cd.'), filterParams);
+        const countResult = await this.dataSource.query(countQuery + (filters.dashboard ? queryCount : querys).replace(/cd\./g, 'cd.'), filterParams);
 
         const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
 

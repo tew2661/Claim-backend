@@ -353,7 +353,7 @@ export class SampleDataSheetController {
             ...query,
             monthYear: moment().format('MM-YYYY'),
             hasDelay: true,
-            countAll: true
+            dashboard: true
         });
         const forMonthly = {
             delayResult: delayResult.items.filter(item => item.hasDelay),
@@ -366,7 +366,7 @@ export class SampleDataSheetController {
             monthYear: undefined,
             year: moment().format('YYYY'),
             hasDelay: true,
-            countAll: true
+            dashboard: true
         });
         const forYearly = {
             delayResult: delayResultYearly.items.filter(item => item.hasDelay),
