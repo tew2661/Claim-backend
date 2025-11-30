@@ -484,9 +484,7 @@ export class InspectionDetailService {
             <p>Sample Data Sheet System</p>
             `;
           // Send to all emails in the array
-          for (const email of supplier.email) {
-            await this.emailService.sendEmail(email, subject, html);
-          }
+          this.emailService.sendEmail(supplier.email.join(','), subject, html);
         }
       } catch (error) {
         console.error('Failed to send email for special request:', error);

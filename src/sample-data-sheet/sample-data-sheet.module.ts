@@ -13,6 +13,9 @@ import { AuthModule } from 'src/auth/auth.module';
 import { UsersModule } from 'src/users/users.module';
 import { InspectionDetailEntity } from 'src/inspection-detail/entities/inspection-detail.entity';
 import { InspectionSpecialRequestEntity } from 'src/inspection-detail/entities/inspection-special-request.entity';
+import { EmailModule } from 'src/email/email.module';
+import { SupplierModule } from 'src/supplier/supplier.module';
+import { UsersEntity } from 'src/users/entities/users.entity';
 
 @Module({
     imports: [
@@ -24,7 +27,10 @@ import { InspectionSpecialRequestEntity } from 'src/inspection-detail/entities/i
             SdsLogEntity,
             InspectionDetailEntity,
             InspectionSpecialRequestEntity,
+            UsersEntity,
         ]),
+        EmailModule,
+        SupplierModule,
         AuthModule,
         UsersModule,
     ],

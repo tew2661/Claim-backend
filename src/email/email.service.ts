@@ -7,16 +7,16 @@ export class EmailService {
 
   constructor() {
     this.transporter = nodemailer.createTransport({
-        host: process.env.MAIL_HOST || 'localhost',
-        port: parseInt(process.env.MAIL_PORT || '587', 10),
-        secure: process.env.MAIL_SECURE == 'true', // false for STARTTLS
-        auth: {
-            user: process.env.MAIL_USER,
-            pass: process.env.MAIL_PASSWORD,
-        },
-        tls: {
-            rejectUnauthorized: false,
-        },
+      host: process.env.MAIL_HOST || 'localhost',
+      port: parseInt(process.env.MAIL_PORT || '587', 10),
+      secure: process.env.MAIL_SECURE == 'true', // false for STARTTLS
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASSWORD,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
   }
 
@@ -24,7 +24,7 @@ export class EmailService {
     const mailOptions = {
       from: `"Supplier Claim Management" <${process.env.MAIL_FROM || ''}>`,
       to: process.env.MAIL_TEST_SENT == 'true' ? process.env.MAIL_SENT_TO : to,
-      subject: subject,
+      subject: `${process.env.MAIL_TEST_SENT == 'true' ? '[TEST] : ' : ''}${subject}`,
       html: html,
     };
 

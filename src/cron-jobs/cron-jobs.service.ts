@@ -48,9 +48,7 @@ export class CronJobsService {
                         <p>Best regards,</p>
                         <p>Sample Data Sheet System</p>
                     `;
-                    for (const email of supplier.email) {
-                        await this.emailService.sendEmail(email, subject, html);
-                    }
+                    this.emailService.sendEmail(supplier.email.join(','), subject, html);
                 }
             }
         } catch (error) {
@@ -78,9 +76,7 @@ export class CronJobsService {
                         <p>Best regards,</p>
                         <p>Sample Data Sheet System</p>
                     `;
-                    for (const email of supplier.email) {
-                        await this.emailService.sendEmail(email, subject, html);
-                    }
+                    this.emailService.sendEmail(supplier.email.join(','), subject, html);
                 }
             }
         } catch (error) {
@@ -113,9 +109,7 @@ export class CronJobsService {
                         <p>Best regards,</p>
                         <p>Sample Data Sheet System</p>
                     `;
-                    for (const email of supplier.email) {
-                        await this.emailService.sendEmail(email, subject, html);
-                    }
+                    this.emailService.sendEmail(supplier.email.join(','), subject, html);
                 }
             }
         } catch (error) {

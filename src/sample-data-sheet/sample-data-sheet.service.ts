@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { SampleDataSheetEntity } from './entities/sample-data-sheet.entity';
@@ -33,6 +34,8 @@ import * as fontkit from '@pdf-lib/fontkit';
 import * as sharp from 'sharp';
 import * as fs from 'fs';
 import * as moment from 'moment';
+import { EmailService } from 'src/email/email.service';
+import { SupplierService } from 'src/supplier/supplier.service';
 
 interface SampleValue {
     no: number;
@@ -58,7 +61,10 @@ interface SampleRow {
 }
 
 @Injectable()
-export class SampleDataSheetService {
+export class SampleDataSheetService implements OnModuleInit {
+    private emailService: EmailService;
+    private supplierService: SupplierService;
+
     constructor(
         @InjectRepository(SampleDataSheetEntity)
         private readonly sheetRepo: Repository<SampleDataSheetEntity>,
@@ -76,7 +82,13 @@ export class SampleDataSheetService {
         private readonly sdsLogRepo: Repository<SdsLogEntity>,
         @InjectDataSource()
         private readonly dataSource: DataSource,
+        private moduleRef: ModuleRef,
     ) { }
+
+    onModuleInit() {
+        this.emailService = this.moduleRef.get(EmailService, { strict: false });
+        this.supplierService = this.moduleRef.get(SupplierService, { strict: false });
+    }
 
     async create(
         dto: CreateSampleDataSheetDto,
@@ -581,6 +593,8 @@ export class SampleDataSheetService {
             let checker1Status = 'Pending';
             if (row.production_08_2025 === 'No' && checker3Approved) {
                 checker1Status = 'Completed';
+            } else if (row.production_08_2025 === 'No' && checker3Rejected) {
+                checker1Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker1Status = 'Supplier Pending';
             } else if ((row.checker1ApprovedSdr === 'Approved' && row.checker1ApprovedSds === 'Approved') &&
@@ -597,6 +611,8 @@ export class SampleDataSheetService {
             let checker2Status = 'Pending';
             if (checker1Status === 'Completed') {
                 checker2Status = 'Completed';
+            } else if (checker1Status === 'Rejected') {
+                checker2Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker2Status = 'Supplier Pending';
             } else if (checker1Status === 'Pending') {
@@ -612,6 +628,8 @@ export class SampleDataSheetService {
             let checker3Status = 'Pending';
             if (checker2Status === 'Completed') {
                 checker3Status = 'Completed';
+            } else if (checker2Status === 'Rejected') {
+                checker3Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker3Status = 'Supplier Pending';
             } else if (checker2Status === 'Wait for Checker 1 Approve') {
@@ -923,6 +941,8 @@ export class SampleDataSheetService {
             let checker1Status = 'Pending';
             if (row.production_08_2025 === 'No' && checker3Approved) {
                 checker1Status = 'Completed';
+            } else if (row.production_08_2025 === 'No' && checker3Rejected) {
+                checker1Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker1Status = 'Supplier Pending';
             } else if (checker1Approved && checker2Approved && checker3Approved) {
@@ -936,6 +956,8 @@ export class SampleDataSheetService {
             let checker2Status = 'Pending';
             if (checker1Status === 'Completed') {
                 checker2Status = 'Completed';
+            } else if (checker1Status === 'Rejected') {
+                checker2Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker2Status = 'Supplier Pending';
             } else if (checker1Status === 'Pending') {
@@ -949,6 +971,8 @@ export class SampleDataSheetService {
             let checker3Status = 'Pending';
             if (checker2Status === 'Completed') {
                 checker3Status = 'Completed';
+            } else if (checker2Status === 'Rejected') {
+                checker3Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker3Status = 'Supplier Pending';
             } else if (checker2Status === 'Wait for Checker 1 Approve') {
@@ -1381,6 +1405,8 @@ export class SampleDataSheetService {
             let checker1Status = 'Pending';
             if (row.production_08_2025 === 'No' && checker3Approved) {
                 checker1Status = 'Completed';
+            } else if (row.production_08_2025 === 'No' && checker3Rejected) {
+                checker1Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker1Status = 'Supplier Pending';
             } else if (checker1Approved && checker2Approved && checker3Approved) {
@@ -1394,6 +1420,8 @@ export class SampleDataSheetService {
             let checker2Status = 'Pending';
             if (checker1Status === 'Completed') {
                 checker2Status = 'Completed';
+            } else if (checker1Status === 'Rejected') {
+                checker2Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker2Status = 'Supplier Pending';
             } else if (checker1Status === 'Pending') {
@@ -1407,6 +1435,8 @@ export class SampleDataSheetService {
             let checker3Status = 'Pending';
             if (checker2Status === 'Completed') {
                 checker3Status = 'Completed';
+            } else if (checker2Status === 'Rejected') {
+                checker3Status = 'Rejected';
             } else if ((supplierStatus == 'Pending' && !checker1Approved && !checker1Rejected) || supplierStatus == 'Wait for JATH Active Part') {
                 checker3Status = 'Supplier Pending';
             } else if (checker2Status === 'Wait for Checker 1 Approve') {
@@ -2117,6 +2147,73 @@ export class SampleDataSheetService {
                 actionDate: new Date(),
                 remark: ((dto.remark || '') + (`\n#${SdsDocumentType.SDS}`)).trim(),
             });
+
+            // Send Email to Supplier if Checker 1 approves/rejects and Production is No
+            if ((dto.approveRole === 'checker1' && sheet.production082025 === 'No') || dto.approveRole === 'approver') {
+                try {
+                    const supplier = await this.supplierService.findByCode(sheet.supplier); // Assuming sheet.supplier stores supplier code
+                    if (supplier && supplier.email && supplier.email.length > 0) {
+                        const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+                        const subject = `SDS Submission ${status}: ${sheet.partNo}`;
+                        const html = `
+                            <p>Dear Supplier,</p>
+                            <p>Your SDS submission for Part No: <strong>${sheet.partNo}</strong> has been <strong>${status}</strong> by JTEKT.</p>
+                            <p><strong>Remark:</strong> ${dto.remark || '-'}</p>
+                            <p>Please log in to the system to review the details.</p>
+                            <br>
+                            <p>Best regards,</p>
+                            <p>Sample Data Sheet System</p>
+                        `;
+                        this.emailService.sendEmail(supplier.email.join(','), subject, html);
+                    }
+                } catch (error) {
+                    console.error('Failed to send email to supplier:', error);
+                }
+            } else if (dto.approveRole === 'checker1') {
+                // ส่งให้ checker2
+                try {
+                    const checker2 = await this.dataSource.getRepository(UsersEntity).find({
+                        where: { sampleDataSheetRole: 'Engineer / Supervision / Assistant Manager', active: 'Y' },
+                    });
+                    if (checker2 && checker2.filter((user) => user.email).length > 0) {
+                        const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+                        const subject = `SDS Submission ${status}: ${sheet.partNo}`;
+                        const html = `
+                            <p>Dear Engineer / Supervision / Assistant Manager,</p>
+                            <p>A new SDS submission for Part No: <strong>${sheet.partNo}</strong> has been submitted by ${status == 'Approved' ? 'Checker 1' : 'JTEKT'}.</p>
+                            <p>Please log in to the system to review the details.</p>
+                            <br>
+                            <p>Best regards,</p>
+                            <p>Sample Data Sheet System</p>
+                        `;
+                        this.emailService.sendEmail(checker2.map((user) => user.email).join(','), subject, html);
+                    }
+                } catch (error) {
+                    console.error('Failed to send email to Engineer / Supervision / Assistant Manager:', error);
+                }
+            } else if (dto.approveRole === 'checker2') {
+                // ส่งให้ production
+                try {
+                    const production = await this.dataSource.getRepository(UsersEntity).find({
+                        where: { sampleDataSheetRole: 'Manager', active: 'Y' },
+                    });
+                    if (production && production.filter((user) => user.email).length > 0) {
+                        const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+                        const subject = `SDS Submission ${status}: ${sheet.partNo}`;
+                        const html = `
+                            <p>Dear Manager,</p>
+                            <p>A new SDS submission for Part No: <strong>${sheet.partNo}</strong> has been submitted by ${status == 'Approved' ? 'Checker 2' : 'JTEKT'}.</p>
+                            <p>Please log in to the system to review the details.</p>
+                            <br>
+                            <p>Best regards,</p>
+                            <p>Sample Data Sheet System</p>
+                        `;
+                        this.emailService.sendEmail(production.map((user) => user.email).join(','), subject, html);
+                    }
+                } catch (error) {
+                    console.error('Failed to send email to Manager:', error);
+                }
+            }
 
         }
     }
