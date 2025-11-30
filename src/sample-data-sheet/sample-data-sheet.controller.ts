@@ -336,7 +336,10 @@ export class SampleDataSheetController {
             : undefined;
         // Force hasDelay filter to true
         const delayQuery = { ...query, hasDelay: true };
-        const result = await this.sampleDataSheetService.listInspectionDetails(delayQuery, supplierCode);
+        const result = await this.sampleDataSheetService.listSummaryReport({
+            ...delayQuery,
+            hasDelay: true
+        }, supplierCode);
         return {
             success: true,
             data: result,

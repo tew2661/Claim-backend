@@ -1172,6 +1172,10 @@ export class SampleDataSheetService {
             querys += ` AND cd.supplier_code = @${paramIndex}`;
             filterParams.push(supplierCode);
             paramIndex++;
+        } else if (filters.supplierCode && filters.supplierCode.toLowerCase() !== 'all') {
+            querys += ` AND cd.supplier_code = @${paramIndex}`;
+            filterParams.push(filters.supplierCode);
+            paramIndex++;
         }
 
         if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
