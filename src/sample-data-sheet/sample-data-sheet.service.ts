@@ -647,7 +647,17 @@ export class SampleDataSheetService {
                 checker3Status,
                 dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
                 hasDelay: row.has_delay,
-                delayDays: row.has_delay ? Math.ceil((this.startOfDay(row.Submitted ? row.Submitted : new Date()).getTime() - this.startOfDay(dueDate).getTime()) / (1000 * 60 * 60 * 24)) : 0,
+                delayDays: row.has_delay === 1 && dueDate
+                    ? Math.floor((new Date(
+                        row.submitted ?
+                            moment(row.submitted).format('YYYY-MM-DD 23:59:59') :
+                            moment().format('YYYY-MM-DD 23:59:59')
+                    ).getTime() - new Date(
+                        dueDate ?
+                            moment(dueDate).format('YYYY-MM-DD 23:59:59') :
+                            moment().format('YYYY-MM-DD 23:59:59')).getTime()
+                    ) / (1000 * 60 * 60 * 24))
+                    : undefined,
                 sdsCreated: row.sds_created,
                 adsStatus: checker3Status,
                 checker1Approved,
@@ -980,7 +990,15 @@ export class SampleDataSheetService {
                 sdsCreated: row.sds_created || false,
                 hasDelay: row.has_delay === 1,
                 delayDays: row.has_delay === 1 && dueDate
-                    ? Math.floor((new Date(row.submitted || new Date()).getTime() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24))
+                    ? Math.floor((new Date(
+                        row.submitted ?
+                            moment(row.submitted).format('YYYY-MM-DD 23:59:59') :
+                            moment().format('YYYY-MM-DD 23:59:59')
+                    ).getTime() - new Date(
+                        dueDate ?
+                            moment(dueDate).format('YYYY-MM-DD 23:59:59') :
+                            moment().format('YYYY-MM-DD 23:59:59')).getTime()
+                    ) / (1000 * 60 * 60 * 24))
                     : undefined,
                 adsStatus: checker3Status,
             }
@@ -1428,7 +1446,15 @@ export class SampleDataSheetService {
                 sdsCreated: row.sds_created || false,
                 hasDelay: row.has_delay === 1,
                 delayDays: row.has_delay === 1 && dueDate
-                    ? Math.floor((new Date(row.submitted || new Date()).getTime() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24))
+                    ? Math.floor((new Date(
+                        row.submitted ?
+                            moment(row.submitted).format('YYYY-MM-DD 23:59:59') :
+                            moment().format('YYYY-MM-DD 23:59:59')
+                    ).getTime() - new Date(
+                        dueDate ?
+                            moment(dueDate).format('YYYY-MM-DD 23:59:59') :
+                            moment().format('YYYY-MM-DD 23:59:59')).getTime()
+                    ) / (1000 * 60 * 60 * 24))
                     : undefined,
                 adsStatus: checker3Status,
             }
