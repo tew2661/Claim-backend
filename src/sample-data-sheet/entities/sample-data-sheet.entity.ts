@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { SampleDataSheetRowEntity } from './sample-data-sheet-row.entity';
 import { InspectionDetailEntity } from 'src/inspection-detail/entities/inspection-detail.entity';
+import { SampleDataSheetApprovalEntity } from './sample-data-sheet-approval.entity';
 
 @Entity({ schema: 'dbo', name: 'sample_data_sheets' })
 export class SampleDataSheetEntity {
@@ -68,4 +69,7 @@ export class SampleDataSheetEntity {
 
     @Column({ name: 'remark', type: 'nvarchar', length: 1000, nullable: true })
     remark: string;
+
+    @OneToMany(() => SampleDataSheetApprovalEntity, row => row.sampleDataSheet, { cascade: true })
+    approvals: SampleDataSheetApprovalEntity[];
 }

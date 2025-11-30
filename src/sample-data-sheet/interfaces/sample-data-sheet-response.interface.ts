@@ -33,8 +33,20 @@ export interface SampleDataSheetResponse {
     sdrFile: string | null;
     sdrReportFile: string | null;
     inspectionDetailId: number | null;
+
     remark: string | null;
     createdAt: Date;
     updatedAt: Date;
     sdrData: SampleDataSheetRowResponse[];
+    approvals?: SampleDataSheetApprovalResponse[];
+}
+
+export interface SampleDataSheetApprovalResponse {
+    id: number;
+    action: string;
+    role: string;
+    documentType: string;
+    remark: string | null;
+    actionDate: Date;
+    reSubmitDate: Date | null;
 }

@@ -11,6 +11,7 @@ import {
     SampleDataSheetResponse,
     SampleDataSheetRowResponse,
     SampleDataSheetSampleResponse,
+    SampleDataSheetApprovalResponse,
 } from './interfaces/sample-data-sheet-response.interface';
 import { InspectionDetailEntity } from 'src/inspection-detail/entities/inspection-detail.entity';
 import { InspectionItemEntity } from 'src/inspection-detail/entities/inspection-item.entity';
@@ -1625,6 +1626,15 @@ export class SampleDataSheetService {
             updatedAt: sheet.updatedAt,
             remark: sheet.remark ?? null,
             sdrData: rows,
+            approvals: (sheet.approvals || []).map(approval => ({
+                id: approval.id,
+                action: approval.action,
+                role: approval.role,
+                documentType: approval.documentType,
+                remark: approval.remark,
+                actionDate: approval.actionDate,
+                reSubmitDate: approval.reSubmitDate,
+            })),
         };
     }
 
@@ -1644,7 +1654,7 @@ export class SampleDataSheetService {
     async findByInspectionDetailForSdsId(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
             where: { id },
-            relations: ['rows', 'rows.samples'],
+            relations: ['rows', 'rows.samples', 'approvals'],
         });
 
         if (!sheet) {
