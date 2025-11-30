@@ -170,7 +170,6 @@ export class SampleDataSheetService {
         sheet.sdrReportFile = reportFile;
         sheet.remark = dto.remark;
 
-        console.log('Updating Sample Data Sheet:', sheet);
         const savedSheet = await this.sheetRepo.save(sheet);
 
         const inspectionItems = await this.dataSource.getRepository(InspectionItemEntity).find({
@@ -289,7 +288,7 @@ export class SampleDataSheetService {
                 CASE 
                     WHEN sheet.sdr_date IS NOT NULL THEN 
                         CASE 
-                            WHEN sheet.sdr_date < (
+                            WHEN DATEADD(day, 1, CAST(sheet.sdr_date AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -425,7 +424,7 @@ export class SampleDataSheetService {
                 CASE 
                     WHEN sheet.sdr_date IS NOT NULL THEN 
                         CASE 
-                            WHEN sheet.sdr_date < (
+                            WHEN DATEADD(day, 1, CAST(sheet.sdr_date AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -751,7 +750,7 @@ export class SampleDataSheetService {
                 CASE 
                     WHEN sheet.sdr_date IS NOT NULL THEN 
                         CASE 
-                            WHEN sheet.sdr_date < (
+                            WHEN DATEADD(day, 1, CAST(sheet.sdr_date AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -1102,7 +1101,7 @@ export class SampleDataSheetService {
                 CASE 
                     WHEN cd.sdr_date IS NOT NULL THEN 
                         CASE 
-                            WHEN cd.sdr_date < (
+                            WHEN DATEADD(day, 1, CAST(cd.sdr_date AS DATE)) <= (
                                 CASE 
                                     WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
                                     ELSE GETDATE()
@@ -1215,27 +1214,38 @@ export class SampleDataSheetService {
             }
         }
 
+        let queryCount = querys;
         if (filters.hasDelay) {
             querys += ` AND (
                 CASE 
                     WHEN cd.sdr_date IS NOT NULL THEN 
                         CASE 
-                            WHEN cd.sdr_date < GETDATE() THEN 1
+                            WHEN DATEADD(day, 1, CAST(cd.sdr_date AS DATE)) <= (
+                                CASE 
+                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
+                                    ELSE GETDATE()
+                                END
+                            ) THEN 1
                             ELSE 0
                         END
                     ELSE 0
-                END 
+                END
             ) = 1`;
         } else if (filters.notHasDelay) {
             querys += ` AND (
                 CASE 
                     WHEN cd.sdr_date IS NOT NULL THEN 
                         CASE 
-                            WHEN cd.sdr_date < GETDATE() THEN 1
+                            WHEN DATEADD(day, 1, CAST(cd.sdr_date AS DATE)) <= (
+                                CASE 
+                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
+                                    ELSE GETDATE()
+                                END
+                            ) THEN 1
                             ELSE 0
                         END
                     ELSE 0
-                END 
+                END
             ) = 0`;
         }
 
@@ -1247,7 +1257,21 @@ export class SampleDataSheetService {
 
         // Get total count
         let countQuery = `
-            WITH combined_data AS (
+            WITH latest_approved AS (
+                SELECT
+                    a.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            a.sample_data_sheet_id,
+                            a.loop,
+                            a.document_type,
+                            a.role
+                        ORDER BY a.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals a
+                WHERE a.action = 'Approved'
+            ),
+            combined_data AS (
                 SELECT 
                     detail.id,
                     sheet.id as sheet_id,
@@ -1257,7 +1281,8 @@ export class SampleDataSheetService {
                     sheet.model,
                     sheet.sdr_date,
                     detail.due_date,
-                    sheet.inspection_detail_id
+                    sheet.inspection_detail_id,
+                    sheet.loop
                 FROM dbo.sample_data_sheets sheet
                 LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
                 
@@ -1272,7 +1297,8 @@ export class SampleDataSheetService {
                     detail.model,
                     NULL as sdr_date,
                     detail.due_date,
-                    detail.id as inspection_detail_id
+                    detail.id as inspection_detail_id,
+                    1 as loop
                 FROM dbo.sds_inspection_detail detail
                 WHERE detail.sds_created = 0
                   AND detail.active_row = 'Y'
@@ -1288,11 +1314,17 @@ export class SampleDataSheetService {
                     FROM dbo.sds_inspection_special_request
                     WHERE inspection_detail_id = cd.inspection_detail_id
                 )
+            LEFT JOIN latest_approved la_sds
+                ON la_sds.sample_data_sheet_id = cd.sheet_id
+               AND la_sds.loop = cd.loop
+               AND la_sds.document_type = 'SDS'
+               AND la_sds.role = 'Approver'
+               AND la_sds.rn = 1
             WHERE 1=1
         `;
 
         const rawResults = await this.dataSource.query(query, queryParams);
-        const countResult = await this.dataSource.query(countQuery + querys.replace(/cd\./g, 'cd.'), filterParams);
+        const countResult = await this.dataSource.query(countQuery + (filters.countAll ? queryCount : querys).replace(/cd\./g, 'cd.'), filterParams);
 
         const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
 
@@ -1472,7 +1504,6 @@ export class SampleDataSheetService {
         const fiscalYearEndDate = moment().year(currentYear + 1).month(2).date(28).endOf('month'); // March 31st of next year
 
         dateFilter = `AND sds.sdr_date >= @0 AND sds.sdr_date <= @1`;
-        console.log(fiscalYearStartDate.format('YYYY-MM-DD HH:mm:ss'), fiscalYearEndDate.format('YYYY-MM-DD HH:mm:ss'));
         params.push(fiscalYearStartDate.format('YYYY-MM-DD HH:mm:ss'), fiscalYearEndDate.format('YYYY-MM-DD HH:mm:ss'));
 
         const sql = `

@@ -349,14 +349,25 @@ export class SampleDataSheetController {
     ) {
 
         // Get delay data (has_delay > 0)
-        const delayResult = await this.sampleDataSheetService.listSummaryReport({ ...query, monthYear: moment().format('MM-YYYY') });
+        const delayResult = await this.sampleDataSheetService.listSummaryReport({
+            ...query,
+            monthYear: moment().format('MM-YYYY'),
+            hasDelay: true,
+            countAll: true
+        });
         const forMonthly = {
             delayResult: delayResult.items.filter(item => item.hasDelay),
             allResult: delayResult.items,
             totalCount: delayResult.total,
         };
 
-        const delayResultYearly = await this.sampleDataSheetService.listSummaryReport({ ...query, monthYear: undefined, year: moment().format('YYYY') });
+        const delayResultYearly = await this.sampleDataSheetService.listSummaryReport({
+            ...query,
+            monthYear: undefined,
+            year: moment().format('YYYY'),
+            hasDelay: true,
+            countAll: true
+        });
         const forYearly = {
             delayResult: delayResultYearly.items.filter(item => item.hasDelay),
             allResult: delayResultYearly.items,
