@@ -2026,7 +2026,7 @@ export class SampleDataSheetService implements OnModuleInit {
     };
 
     async submitApproval(dto: SdsApprovalDto, actionByUser: UsersEntity): Promise<void> {
-        const sheet = await this.sheetRepo.findOne({ where: { id: dto.id } });
+        const sheet = await this.sheetRepo.findOne({ where: { id: dto.id } , relations: ['inspectionDetail']});
         if (!sheet) {
             throw new NotFoundException('Sample Data Sheet not found');
         }
@@ -2147,38 +2147,98 @@ export class SampleDataSheetService implements OnModuleInit {
                 actionDate: new Date(),
                 remark: ((dto.remark || '') + (`\n#${SdsDocumentType.SDS}`)).trim(),
             });
+        }
 
-            // Send Email to Supplier if Checker 1 approves/rejects and Production is No
-            if ((dto.approveRole === 'checker1' && sheet.production082025 === 'No') || dto.approveRole === 'approver') {
-                try {
-                    const supplier = await this.supplierService.findByCode(sheet.supplier); // Assuming sheet.supplier stores supplier code
-                    if (supplier && supplier.email && supplier.email.length > 0) {
-                        const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
-                        const subject = `SDS Submission ${status}: ${sheet.partNo}`;
+        const sdsAction = dto.actionSdsApproval === 'approve' && dto.actionSdrApproval === 'approve' ?
+            SdsApprovalAction.APPROVED :
+            SdsApprovalAction.REJECTED;
+
+        // Send Email to Supplier if Checker 1 approves/rejects and Production is No, or Approver acts
+        if ((dto.approveRole === 'checker1' && sheet.production082025 === 'No') || dto.approveRole === 'approver') {
+            try {
+                if (!(sheet?.inspectionDetail?.supplierCode)) {
+                    return;
+                }
+                const supplier = await this.supplierService.findByCode(sheet.inspectionDetail.supplierCode); // Assuming sheet.supplier stores supplier code
+                if (supplier && supplier.email && supplier.email.length > 0) {
+                    const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
+                    const monthLabel = moment(sheet.sdrDate ?? new Date()).format('MM-YYYY');
+                    const dueDateLabel = moment(sdsAction === SdsApprovalAction.REJECTED ? (dto.reSubmitDate ?? sheet.sdrDate ?? new Date()) : (sheet.sdrDate ?? new Date())).format('DD-MM-YYYY');
+
+                    if (sdsAction === SdsApprovalAction.REJECTED) {
+                        // Reject template
+                        const subject = `SDS Approval Status: REJECTED - ${sheet.partNo}`;
                         const html = `
-                            <p>Dear Supplier,</p>
-                            <p>Your SDS submission for Part No: <strong>${sheet.partNo}</strong> has been <strong>${status}</strong> by JTEKT.</p>
-                            <p><strong>Remark:</strong> ${dto.remark || '-'}</p>
-                            <p>Please log in to the system to review the details.</p>
-                            <br>
-                            <p>Best regards,</p>
-                            <p>Sample Data Sheet System</p>
-                        `;
+                                                            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+                                                                <p style="margin:0 0 6px 0;">Dear ${sheet?.inspectionDetail.supplierName || 'Supplier'},</p>
+                                                                <p style="margin:0 0 10px 0;">
+                                                                    You have received, SDS Approval Status is <span style="color:#e53935; font-weight:700;">REJECTED</span> on <span style="font-weight:700;">${monthLabel}</span>
+                                                                </p>
+                                                                <p style="margin:0 0 10px 0;">Please input and Re-submit SDS by <span style="color:#1e88e5; font-weight:700;">${dueDateLabel}</span></p>
+
+                                                                <table style="margin:10px 0;">
+                                                                    <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${sheet.partNo}</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${sheet.partName}</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Model :</td><td><strong>${sheet.model}</strong></td></tr>
+                                                                </table>
+
+                                                                <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
+                                                                <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) to review through below link;</p>
+                                                                <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+                                                                <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+                                                                <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+                                                                <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                                                                    THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+                                                                </p>
+                                                            </div>
+                                                        `;
+                        this.emailService.sendEmail(supplier.email.join(','), subject, html);
+                    } else if (sdsAction === SdsApprovalAction.APPROVED) {
+                        // Completed template (and Approved similar to Completed)
+                        const subject = `Monthly SDS / Special Request Status: COMPLETED - ${sheet.partNo}`;
+                        const html = `
+                                                            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+                                                                <p style="margin:0 0 6px 0;">Dear ${sheet?.inspectionDetail?.supplierName || 'Supplier'},</p>
+                                                                <p style="margin:0 0 10px 0;">
+                                                                    You have received, <span style="font-weight:700;">Monthly SDS / Special Request</span> Status is <span style="color:#2e7d32; font-weight:700;">COMPLETED</span> on <span style="font-weight:700;">${monthLabel}</span>
+                                                                </p>
+
+                                                                <table style="margin:10px 0;">
+                                                                    <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${sheet.partNo}</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${sheet.partName}</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Model :</td><td><strong>${sheet.model}</strong></td></tr>
+                                                                </table>
+
+                                                                <p style="margin:14px 0 6px 0;">Kindly Review Details in MENU : <strong>Summary Report</strong></p>
+                                                                <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) to review through below link;</p>
+                                                                <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+                                                                <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+                                                                <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+                                                                <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                                                                    THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+                                                                </p>
+                                                            </div>
+                                                        `;
                         this.emailService.sendEmail(supplier.email.join(','), subject, html);
                     }
-                } catch (error) {
-                    console.error('Failed to send email to supplier:', error);
                 }
-            } else if (dto.approveRole === 'checker1') {
-                // ส่งให้ checker2
-                try {
-                    const checker2 = await this.dataSource.getRepository(UsersEntity).find({
-                        where: { sampleDataSheetRole: 'Engineer / Supervision / Assistant Manager', active: 'Y' },
-                    });
-                    if (checker2 && checker2.filter((user) => user.email).length > 0) {
-                        const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
-                        const subject = `SDS Submission ${status}: ${sheet.partNo}`;
-                        const html = `
+            } catch (error) {
+                console.error('Failed to send email to supplier:', error);
+            }
+        } else if (dto.approveRole === 'checker1') {
+            // ส่งให้ checker2
+            try {
+                const checker2 = await this.dataSource.getRepository(UsersEntity).find({
+                    where: { sampleDataSheetRole: 'Engineer / Supervision / Assistant Manager', active: 'Y' },
+                });
+                if (checker2 && checker2.filter((user) => user.email).length > 0) {
+                    const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+                    const subject = `SDS Submission ${status}: ${sheet.partNo}`;
+                    const html = `
                             <p>Dear Engineer / Supervision / Assistant Manager,</p>
                             <p>A new SDS submission for Part No: <strong>${sheet.partNo}</strong> has been submitted by ${status == 'Approved' ? 'Checker 1' : 'JTEKT'}.</p>
                             <p>Please log in to the system to review the details.</p>
@@ -2186,21 +2246,21 @@ export class SampleDataSheetService implements OnModuleInit {
                             <p>Best regards,</p>
                             <p>Sample Data Sheet System</p>
                         `;
-                        this.emailService.sendEmail(checker2.map((user) => user.email).join(','), subject, html);
-                    }
-                } catch (error) {
-                    console.error('Failed to send email to Engineer / Supervision / Assistant Manager:', error);
+                    this.emailService.sendEmail(checker2.map((user) => user.email).join(','), subject, html);
                 }
-            } else if (dto.approveRole === 'checker2') {
-                // ส่งให้ production
-                try {
-                    const production = await this.dataSource.getRepository(UsersEntity).find({
-                        where: { sampleDataSheetRole: 'Manager', active: 'Y' },
-                    });
-                    if (production && production.filter((user) => user.email).length > 0) {
-                        const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
-                        const subject = `SDS Submission ${status}: ${sheet.partNo}`;
-                        const html = `
+            } catch (error) {
+                console.error('Failed to send email to Engineer / Supervision / Assistant Manager:', error);
+            }
+        } else if (dto.approveRole === 'checker2') {
+            // ส่งให้ production
+            try {
+                const production = await this.dataSource.getRepository(UsersEntity).find({
+                    where: { sampleDataSheetRole: 'Manager', active: 'Y' },
+                });
+                if (production && production.filter((user) => user.email).length > 0) {
+                    const status = sdsAction === SdsApprovalAction.APPROVED ? 'Approved' : 'Rejected';
+                    const subject = `SDS Submission ${status}: ${sheet.partNo}`;
+                    const html = `
                             <p>Dear Manager,</p>
                             <p>A new SDS submission for Part No: <strong>${sheet.partNo}</strong> has been submitted by ${status == 'Approved' ? 'Checker 2' : 'JTEKT'}.</p>
                             <p>Please log in to the system to review the details.</p>
@@ -2208,14 +2268,13 @@ export class SampleDataSheetService implements OnModuleInit {
                             <p>Best regards,</p>
                             <p>Sample Data Sheet System</p>
                         `;
-                        this.emailService.sendEmail(production.map((user) => user.email).join(','), subject, html);
-                    }
-                } catch (error) {
-                    console.error('Failed to send email to Manager:', error);
+                    this.emailService.sendEmail(production.map((user) => user.email).join(','), subject, html);
                 }
+            } catch (error) {
+                console.error('Failed to send email to Manager:', error);
             }
-
         }
+
     }
 
     async getApprovalHistory(query: SdsApprovalHistoryQueryDto) {

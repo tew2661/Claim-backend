@@ -39,15 +39,37 @@ export class CronJobsService {
             for (const item of activeItems) {
                 const supplier = await this.supplierService.findByCode(item.supplierCode);
                 if (supplier && supplier.email && supplier.email.length > 0) {
-                    const subject = `Monthly SDS Submission Reminder: ${item.partNo}`;
+                    const moment = require('moment');
+                    const monthLabel = moment(item.dueDate ?? new Date()).format('MM-YYYY');
+                    const dueDate25 = moment(item.dueDate ?? new Date()).set('date', 25).format('DD-MM-YYYY');
+                    const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
+                    const subject = `SDS Monthly Request Reminder: ${item.partNo}`;
                     const html = `
-                        <p>Dear Supplier,</p>
-                        <p>This is a reminder to submit the Monthly SDS for Part No: <strong>${item.partNo}</strong>.</p>
-                        <p>Please log in to the system and submit the data by the 25th of this month.</p>
-                        <br>
-                        <p>Best regards,</p>
-                        <p>Sample Data Sheet System</p>
-                    `;
+                                            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+                                                <p style="margin:0 0 6px 0;">Dear ${item.supplierName || 'Supplier'},</p>
+                                                <p style="margin:0 0 10px 0;">
+                                                    You have received, <span style="font-weight:700;">SDS Monthly Request</span> on <span style="color:#1e88e5; font-weight:700;">${monthLabel}</span>
+                                                </p>
+                                                <p style="margin:0 0 10px 0;">Please input and Submit Monthly SDS by <span style="color:#1e88e5; font-weight:700;">${dueDate25}</span></p>
+
+                                                <table style="margin:10px 0;">
+                                                    <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${item.partNo}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${item.partName}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Model :</td><td><strong>${item.model}</strong></td></tr>
+                                                </table>
+
+                                                <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
+                                                <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) to review through below link;</p>
+                                                <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+                                                <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+                                                <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+                                                <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                                                    THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+                                                </p>
+                                            </div>
+                                        `;
                     this.emailService.sendEmail(supplier.email.join(','), subject, html);
                 }
             }
@@ -67,15 +89,37 @@ export class CronJobsService {
             for (const item of delayedItems) {
                 const supplier = await this.supplierService.findByCode(item.supplierCode);
                 if (supplier && supplier.email && supplier.email.length > 0) {
-                    const subject = `SDS Submission Delayed: ${item.partNo}`;
+                    const monthLabel = require('moment')(item.dueDate ?? new Date()).format('MM-YYYY');
+                    const dueDateLabel = require('moment')(item.dueDate ?? new Date()).format('DD-MM-YYYY');
+                    const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
+                    const subject = `SDS Monthly Request OVERDUE: ${item.partNo}`;
                     const html = `
-                        <p>Dear Supplier,</p>
-                        <p>This is a reminder that the SDS submission for Part No: <strong>${item.partNo}</strong> is delayed.</p>
-                        <p>Please submit the SDS as soon as possible.</p>
-                        <br>
-                        <p>Best regards,</p>
-                        <p>Sample Data Sheet System</p>
-                    `;
+                                            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+                                                <p style="margin:0 0 6px 0;">Dear ${item.supplierName || 'Supplier'},</p>
+                                                <p style="margin:0 0 10px 0;">
+                                                    You have received Alert E-Mail, SDS Monthly Request / SDS Special Request Status is <span style="color:#e53935; font-weight:700;">OVERDUE X Day</span> on <span style="font-weight:700;">${monthLabel}</span>
+                                                </p>
+                                                <p style="margin:0 0 6px 0;">Your SDS submission Due Date is on <span style="color:#1e88e5; font-weight:700;">${dueDateLabel}</span></p>
+                                                <p style="margin:0 0 10px 0; color:#e53935; font-weight:700;">Please input and Submit AS SOON AS POSSIBLE</p>
+
+                                                <table style="margin:10px 0;">
+                                                    <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${item.partNo}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${item.partName}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Model :</td><td><strong>${item.model}</strong></td></tr>
+                                                </table>
+
+                                                <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
+                                                <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) to review through below link;</p>
+                                                <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+                                                <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+                                                <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+                                                <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                                                    THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+                                                </p>
+                                            </div>
+                                        `;
                     this.emailService.sendEmail(supplier.email.join(','), subject, html);
                 }
             }
@@ -99,16 +143,37 @@ export class CronJobsService {
 
                 const supplier = await this.supplierService.findByCode(inspectionDetail.supplierCode);
                 if (supplier && supplier.email && supplier.email.length > 0) {
-                    const subject = `Special Request SDS Submission Delayed: ${inspectionDetail.partNo}`;
+                    const monthLabel = require('moment')(request.dueDate ?? new Date()).format('MM-YYYY');
+                    const dueDateLabel = require('moment')(request.dueDate ?? new Date()).format('DD-MM-YYYY');
+                    const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
+                    const subject = `SDS Monthly / Special Request OVERDUE: ${inspectionDetail.partNo}`;
                     const html = `
-                        <p>Dear Supplier,</p>
-                        <p>This is a reminder that the Special Request SDS submission for Part No: <strong>${inspectionDetail.partNo}</strong> is overdue.</p>
-                        <p>Due Date: ${request.dueDate}</p>
-                        <p>Please submit the SDS as soon as possible.</p>
-                        <br>
-                        <p>Best regards,</p>
-                        <p>Sample Data Sheet System</p>
-                    `;
+                                            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+                                                <p style="margin:0 0 6px 0;">Dear ${inspectionDetail.supplierName || 'Supplier'},</p>
+                                                <p style="margin:0 0 10px 0;">
+                                                    You have received Alert E-Mail, SDS Monthly Request / SDS Special Request Status is <span style="color:#e53935; font-weight:700;">OVERDUE X Day</span> on <span style="font-weight:700;">${monthLabel}</span>
+                                                </p>
+                                                <p style="margin:0 0 6px 0;">Your SDS submission Due Date is on <span style="color:#1e88e5; font-weight:700;">${dueDateLabel}</span></p>
+                                                <p style="margin:0 0 10px 0; color:#e53935; font-weight:700;">Please input and Submit AS SOON AS POSSIBLE</p>
+
+                                                <table style="margin:10px 0;">
+                                                    <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${inspectionDetail.partNo}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${inspectionDetail.partName}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
+                                                </table>
+
+                                                <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
+                                                <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) to review through below link;</p>
+                                                <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+                                                <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+                                                <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+                                                <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                                                    THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+                                                </p>
+                                            </div>
+                                        `;
                     this.emailService.sendEmail(supplier.email.join(','), subject, html);
                 }
             }

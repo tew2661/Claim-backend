@@ -124,6 +124,8 @@ export class InspectionDetailService {
       await this.inspectionItemRepo.save(items);
     }
 
+     
+
     // Create log for inspection detail creation
     await this.sdsLogService.createLog({
       menu: 'Inspection Detail',
@@ -136,6 +138,89 @@ export class InspectionDetailService {
       actionDate: new Date(),
       remark: null,
     });
+
+    // Notify JTEKT (Access Management Master) users upon creation when Part Status is INACTIVE and Edit Status is LOCKED
+    try {
+      if (actionBy?.role === 'Supplier' && savedDetail.partStatus === PartStatus.Inactive && savedDetail.supplierEditStatus === SupplierEditStatus.Locked) {
+        const jtektUsers = await this.inspectionDetailRepo.manager.getRepository(UsersEntity).find({
+          where: { accessMasterManagement: 'Y', active: 'Y' },
+        });
+        const to = jtektUsers.map(u => u.email).filter(Boolean).join(',');
+        if (to) {
+          const baseUrl = process.env.MAIL_LINK_WEBAPP_JTEKT_SDS ?? 'http://192.168.3.156:8000/';
+          const subject = `New Edit Inspection Details Request: ${savedDetail.partNo}`;
+          const html = `
+            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+              <p style="margin:0 0 6px 0;">Dear JATH User,</p>
+              <p style="margin:0 0 10px 0;">
+                You have received <span style="font-weight:700;">New Edit Inspection Details Request</span>. Currently this Part No. Status is <span style="color:#e53935; font-weight:700;">INACTIVE</span> and Edit Status is <span style="color:#e53935; font-weight:700;">LOCKED</span>
+              </p>
+
+              <table style="margin:10px 0;">
+                <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${savedDetail.partNo}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${savedDetail.partName}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Model :</td><td><strong>${savedDetail.model}</strong></td></tr>
+              </table>
+
+              <p style="margin:14px 0 6px 0;">To allow Supplier to Edit Inspection Details, Please change Setting in Menu : <strong>Inspection Detail</strong> following below;</p>
+              <p style="margin:6px 0;">1. Change Part Status from <span style="color:#e53935; font-weight:700;">INACTIVE</span> to <span style="color:#2e7d32; font-weight:700;">ACTIVE</span></p>
+              <p style="margin:6px 0;">2. Change Edit Status from <span style="color:#e53935; font-weight:700;">LOCKED</span> to <span style="color:#1e88e5; font-weight:700;">UNLOCKED</span></p>
+
+              <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) through below link;</p>
+              <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+              <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+              <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+              <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+              </p>
+            </div>
+          `;
+          this.emailService.sendEmail(to, subject, html);
+        }
+      } else if (actionBy?.accessMasterManagement === 'Y' && savedDetail.partStatus === PartStatus.Active) {
+        // Notify Supplier when JTEKT activates a new Inspection Detail (Part Status ACTIVE)
+        try {
+          const supplier = await this.supplierService.findByCode(savedDetail.supplierCode);
+          if (supplier && supplier.email && supplier.email.length > 0) {
+            const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
+            const subject = `New Inspection Detail (ACTIVE): ${savedDetail.partNo}`;
+            const html = `
+              <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+                <p style="margin:0 0 6px 0;">Dear ${savedDetail.supplierName || 'Supplier'}${savedDetail.supplierName ? '' : ' Name'},</p>
+                <p style="margin:0 0 10px 0;">
+                  You have received <span style="font-weight:700;">New Part No. Details</span>, this Inspection Detail Status is <span style="color:#2e7d32; font-weight:700;">"ACTIVE"</span>.
+                </p>
+
+                <table style="margin:10px 0;">
+                  <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${savedDetail.partNo}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${savedDetail.partName}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Model :</td><td><strong>${savedDetail.model}</strong></td></tr>
+                </table>
+
+                <p style="margin:14px 0 6px 0;">Kindly Review Details in MENU : <strong>Inspection Detail</strong>.</p>
+
+                <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) through below link;</p>
+                <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+                <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+                <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+                <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                  THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+                </p>
+              </div>
+            `;
+            this.emailService.sendEmail(supplier.email.join(','), subject, html);
+          }
+        } catch (err) {
+          console.error('Failed to send ACTIVE notification to Supplier:', err);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send email to JTEKT users on create:', error);
+    }
 
     return savedDetail;
   }
@@ -249,6 +334,91 @@ export class InspectionDetailService {
           remark: null,
         });
       }
+    }
+
+    // Notify JTEKT (Access Management Master) users when part remains INACTIVE after edit
+    try {
+      if (actionBy?.role === 'Supplier' && existing.partStatus === PartStatus.Inactive) {
+        const jtektUsers = await this.inspectionDetailRepo.manager.getRepository(UsersEntity).find({
+          where: { accessMasterManagement: 'Y', active: 'Y' },
+        });
+        if (jtektUsers && jtektUsers.length > 0) {
+          const baseUrl = process.env.MAIL_LINK_WEBAPP_JTEKT_SDS ?? 'http://192.168.3.156:8000/';
+          const subject = `New Edited Inspection Details (INACTIVE): ${existing.partNo}`;
+          const html = `
+            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+              <p style="margin:0 0 6px 0;">Dear JATH User,</p>
+              <p style="margin:0 0 10px 0;">
+                You have received <span style="font-weight:700;">New Edited Inspection Details</span> ., Currently this Part No. Status is remaining <span style="color:#e53935; font-weight:700;">INACTIVE</span>.
+              </p>
+
+              <table style="margin:10px 0;">
+                <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${existing.partNo}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${existing.partName}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Model :</td><td><strong>${existing.model}</strong></td></tr>
+              </table>
+
+              <p style="margin:14px 0 6px 0;">To Active this Part No., Please change Setting in Menu : <strong>Inspection Detail</strong> following below;</p>
+              <p style="margin:6px 0;">1. Change Part Status from <span style="color:#e53935; font-weight:700;">INACTIVE</span> to <span style="color:#2e7d32; font-weight:700;">ACTIVE</span></p>
+
+              <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) through below link;</p>
+              <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+              <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+              <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+              <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+              </p>
+            </div>
+          `;
+          const to = jtektUsers.map(u => u.email).filter(Boolean).join(',');
+          if (to) {
+            this.emailService.sendEmail(to, subject, html);
+          }
+        }
+      }
+      // Notify Supplier when JTEKT sets Part Status to ACTIVE on update
+      if (actionBy?.accessMasterManagement === 'Y' && existing.partStatus === PartStatus.Active) {
+        try {
+          const supplier = await this.supplierService.findByCode(existing.supplierCode);
+          if (supplier && supplier.email && supplier.email.length > 0) {
+            const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
+            const subject = `New Inspection Detail (ACTIVE): ${existing.partNo}`;
+            const html = `
+              <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+                <p style="margin:0 0 6px 0;">Dear ${existing.supplierName || 'Supplier'}${existing.supplierName ? '' : ' Name'},</p>
+                <p style="margin:0 0 10px 0;">
+                  You have received <span style="font-weight:700;">New Part No. Details</span>, this Inspection Detail Status is <span style="color:#2e7d32; font-weight:700;">"ACTIVE"</span>.
+                </p>
+
+                <table style="margin:10px 0;">
+                  <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${existing.partNo}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${existing.partName}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Model :</td><td><strong>${existing.model}</strong></td></tr>
+                </table>
+
+                <p style="margin:14px 0 6px 0;">Kindly Review Details in MENU : <strong>Inspection Detail</strong>.</p>
+
+                <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) through below link;</p>
+                <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+                <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+                <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+                <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                  THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+                </p>
+              </div>
+            `;
+            this.emailService.sendEmail(supplier.email.join(','), subject, html);
+          }
+        } catch (err) {
+          console.error('Failed to send ACTIVE notification to Supplier (update):', err);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send email to JTEKT users for INACTIVE part:', error);
     }
 
     return this.findById(id);
@@ -473,16 +643,37 @@ export class InspectionDetailService {
       try {
         const supplier = await this.supplierService.findByCode(inspectionDetail.supplierCode);
         if (supplier && supplier.email && supplier.email.length > 0) {
-          const subject = `Special Request Created: ${inspectionDetail.partNo}`;
+          const monthLabel = moment(dto.dueDate ?? new Date()).format('MM-YYYY');
+          const dueDateLabel = moment(dto.dueDate ?? new Date()).format('DD-MM-YYYY');
+          const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
+
+          const subject = `SDS Special Request: ${inspectionDetail.partNo}`;
           const html = `
-            <p>Dear Supplier,</p>
-            <p>A Special Request has been created for Part No: <strong>${inspectionDetail.partNo}</strong>.</p>
-            <p><strong>Comments:</strong> ${dto.comments || '-'}</p>
-            <p>Please log in to the system to review the details.</p>
-            <br>
-            <p>Best regards,</p>
-            <p>Sample Data Sheet System</p>
-            `;
+            <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+              <p style="margin:0 0 6px 0;">Dear ${inspectionDetail.supplierName || 'Supplier'},</p>
+              <p style="margin:0 0 10px 0;">
+                You have received, <span style="color:#e53935; font-weight:700;">SDS Special Request</span> on <span style="color:#1e88e5; font-weight:700;">${monthLabel}</span>
+              </p>
+              <p style="margin:0 0 10px 0;">Please input and Submit SDS Special Request by <span style="color:#1e88e5; font-weight:700;">${dueDateLabel}</span></p>
+
+              <table style="margin:10px 0;">
+                <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${inspectionDetail.partNo}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${inspectionDetail.partName}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
+              </table>
+
+              <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
+              <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) to review through below link;</p>
+              <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+              <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+              <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+              <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+                THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+              </p>
+            </div>
+          `;
           // Send to all emails in the array
           this.emailService.sendEmail(supplier.email.join(','), subject, html);
         }
