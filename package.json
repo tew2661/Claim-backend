@@ -19,8 +19,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migration:generate": "npx typeorm migration:generate src/migrations/InitialMigration -d dist/data-source.js",
-    "migration": "npx typeorm migration:run -d dist/data-source.js",
-    "migration:revert": "npx typeorm migration:revert -d dist/data-source.js"
+    "migration": "npm run build && npx typeorm migration:run -d dist/data-source.js",
+    "migration:revert": "npx typeorm migration:revert -d dist/data-source.js",
+    "seed:inspection": "npm run build && node dist/scripts/seed-inspection.js"
   },
   "dependencies": {
     "@googleapis/drive": "^8.14.0",

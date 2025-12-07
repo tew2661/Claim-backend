@@ -70,6 +70,12 @@ export class SampleDataSheetEntity {
     @Column({ name: 'remark', type: 'nvarchar', length: 1000, nullable: true })
     remark: string;
 
+    @Column({ name: 'has_delay', type: 'bit', nullable: false, default: 0 })
+    hasDelay: boolean;
+
+    @Column({ name: 'delay_days', type: 'int', nullable: true })
+    delayDays: number;
+
     @OneToMany(() => SampleDataSheetApprovalEntity, row => row.sampleDataSheet, { cascade: true })
     approvals: SampleDataSheetApprovalEntity[];
 }

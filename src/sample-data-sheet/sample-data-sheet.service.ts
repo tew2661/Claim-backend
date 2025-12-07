@@ -116,6 +116,9 @@ export class SampleDataSheetService implements OnModuleInit {
 
         const savedSheet = await this.sheetRepo.save(sheet);
 
+        // Calculate and update delay status
+        await this.updateDelayStatus(savedSheet.id, dto.inspectionDetailId, savedSheet.sdrDate);
+
         const inspectionItems = await this.dataSource.getRepository(InspectionItemEntity).find({
             where: { inspectionDetailId: dto.inspectionDetailId },
         });
@@ -183,6 +186,9 @@ export class SampleDataSheetService implements OnModuleInit {
         sheet.remark = dto.remark;
 
         const savedSheet = await this.sheetRepo.save(sheet);
+
+        // Calculate and update delay status
+        await this.updateDelayStatus(savedSheet.id, dto.inspectionDetailId, savedSheet.sdrDate);
 
         const inspectionItems = await this.dataSource.getRepository(InspectionItemEntity).find({
             where: { inspectionDetailId: dto.inspectionDetailId },
@@ -266,6 +272,31 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+            ),
+            latest_submitted AS (
+                SELECT
+                    sds_app.sample_data_sheet_id,
+                    sds_app.loop,
+                    CASE 
+                        WHEN sds_app.action_date > sdr_app.action_date THEN sds_app.action_date
+                        ELSE sdr_app.action_date
+                    END as action_date,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            sds_app.sample_data_sheet_id,
+                            sds_app.loop
+                        ORDER BY sds_app.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals sds_app
+                INNER JOIN sample_data_sheet_approvals sdr_app
+                    ON sdr_app.sample_data_sheet_id = sds_app.sample_data_sheet_id
+                   AND sdr_app.loop = sds_app.loop
+                   AND sdr_app.document_type = 'SDR'
+                   AND sdr_app.role = 'Approver'
+                   AND sdr_app.action = 'Approved'
+                WHERE sds_app.document_type = 'SDS'
+                  AND sds_app.role = 'Approver'
+                  AND sds_app.action = 'Approved'
             )
             SELECT
                 detail.id,
@@ -297,20 +328,9 @@ export class SampleDataSheetService implements OnModuleInit {
                 l2_sds.action AS checker2ApprovedSds,
                 l3_sdr.action AS checker3ApprovedSdr,
                 l3_sds.action AS checker3ApprovedSds,
-                la_sds.action_date AS submitted,
-                CASE 
-                    WHEN COALESCE(sheet.sdr_date, detail.due_date) IS NOT NULL THEN 
-                        CASE 
-                            WHEN DATEADD(day, 1, CAST(COALESCE(sheet.sdr_date, detail.due_date) AS DATE)) <= (
-                                CASE 
-                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
-                                    ELSE GETDATE()
-                                END
-                            ) THEN 1
-                            ELSE 0
-                        END
-                    ELSE 0
-                END AS has_delay
+                ls.action_date AS submitted,
+                sheet.has_delay,
+                sheet.delay_days
             FROM dbo.sds_inspection_detail detail
             LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
             LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
@@ -363,6 +383,10 @@ export class SampleDataSheetService implements OnModuleInit {
                AND la_sds.document_type = 'SDS'
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
+            LEFT JOIN latest_submitted ls
+                ON ls.sample_data_sheet_id = sheet.id
+               AND ls.loop = sheet.loop
+               AND ls.rn = 1
             WHERE detail.active_row = 'Y' AND detail.deleted_at IS NULL
             
         `;
@@ -433,21 +457,7 @@ export class SampleDataSheetService implements OnModuleInit {
         }
 
         if (filters.hasDelay) {
-            querys += ` AND (
-                CASE 
-                    WHEN sheet.sdr_date IS NOT NULL THEN 
-                        CASE 
-                            WHEN DATEADD(day, 1, CAST(sheet.sdr_date AS DATE)) <= (
-                                CASE 
-                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
-                                    ELSE GETDATE()
-                                END
-                            ) THEN 1
-                            ELSE 0
-                        END
-                    ELSE 0
-                END
-            ) = 1`;
+            querys += ` AND sheet.has_delay = 1`;
             querys += ` AND la_sds.action_date IS NULL`;
         }
 
@@ -495,6 +505,31 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+            ),
+            latest_submitted AS (
+                SELECT
+                    sds_app.sample_data_sheet_id,
+                    sds_app.loop,
+                    CASE 
+                        WHEN sds_app.action_date > sdr_app.action_date THEN sds_app.action_date
+                        ELSE sdr_app.action_date
+                    END as action_date,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            sds_app.sample_data_sheet_id,
+                            sds_app.loop
+                        ORDER BY sds_app.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals sds_app
+                INNER JOIN sample_data_sheet_approvals sdr_app
+                    ON sdr_app.sample_data_sheet_id = sds_app.sample_data_sheet_id
+                   AND sdr_app.loop = sds_app.loop
+                   AND sdr_app.document_type = 'SDR'
+                   AND sdr_app.role = 'Approver'
+                   AND sdr_app.action = 'Approved'
+                WHERE sds_app.document_type = 'SDS'
+                  AND sds_app.role = 'Approver'
+                  AND sds_app.action = 'Approved'
             )
             SELECT
                 COUNT(*) AS total
@@ -550,6 +585,10 @@ export class SampleDataSheetService implements OnModuleInit {
                AND la_sds.document_type = 'SDS'
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
+            LEFT JOIN latest_submitted ls
+                ON ls.sample_data_sheet_id = sheet.id
+               AND ls.loop = sheet.loop
+               AND ls.rn = 1
             WHERE detail.active_row = 'Y' AND detail.deleted_at IS NULL
         `;
 
@@ -667,18 +706,8 @@ export class SampleDataSheetService implements OnModuleInit {
                 checker2Status,
                 checker3Status,
                 dueDate: dueDate ? this.formatDayMonthYear(dueDate) : null,
-                hasDelay: row.has_delay,
-                delayDays: row.has_delay === 1 && dueDate
-                    ? Math.floor((new Date(
-                        row.submitted ?
-                            moment(row.submitted).format('YYYY-MM-DD 23:59:59') :
-                            moment().format('YYYY-MM-DD 23:59:59')
-                    ).getTime() - new Date(
-                        dueDate ?
-                            moment(dueDate).format('YYYY-MM-DD 23:59:59') :
-                            moment().format('YYYY-MM-DD 23:59:59')).getTime()
-                    ) / (1000 * 60 * 60 * 24))
-                    : undefined,
+                hasDelay: !!row.has_delay,
+                delayDays: row.delay_days ?? undefined,
                 sdsCreated: row.sds_created,
                 adsStatus: checker3Status,
                 checker1Approved,
@@ -747,6 +776,31 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+            ),
+            latest_submitted AS (
+                SELECT
+                    sds_app.sample_data_sheet_id,
+                    sds_app.loop,
+                    CASE 
+                        WHEN sds_app.action_date > sdr_app.action_date THEN sds_app.action_date
+                        ELSE sdr_app.action_date
+                    END as action_date,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            sds_app.sample_data_sheet_id,
+                            sds_app.loop
+                        ORDER BY sds_app.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals sds_app
+                INNER JOIN sample_data_sheet_approvals sdr_app
+                    ON sdr_app.sample_data_sheet_id = sds_app.sample_data_sheet_id
+                   AND sdr_app.loop = sds_app.loop
+                   AND sdr_app.document_type = 'SDR'
+                   AND sdr_app.role = 'Approver'
+                   AND sdr_app.action = 'Approved'
+                WHERE sds_app.document_type = 'SDS'
+                  AND sds_app.role = 'Approver'
+                  AND sds_app.action = 'Approved'
             )
             SELECT
                 sheet.id,
@@ -776,21 +830,10 @@ export class SampleDataSheetService implements OnModuleInit {
                 l2_sds.action AS checker2ApprovedSds,
                 l3_sdr.action AS checker3ApprovedSdr,
                 l3_sds.action AS checker3ApprovedSds,
-                la_sds.action_date AS submitted,
+                ls.action_date AS submitted,
                 sp.id AS special_id,
-                CASE 
-                    WHEN COALESCE(sheet.sdr_date, detail.due_date) IS NOT NULL THEN 
-                        CASE 
-                            WHEN DATEADD(day, 1, CAST(COALESCE(sheet.sdr_date, detail.due_date) AS DATE)) <= (
-                                CASE 
-                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
-                                    ELSE GETDATE()
-                                END
-                            ) THEN 1
-                            ELSE 0
-                        END
-                    ELSE 0
-                END AS has_delay
+                sheet.has_delay,
+                sheet.delay_days
             FROM dbo.sample_data_sheets sheet
             LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
             LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
@@ -843,6 +886,10 @@ export class SampleDataSheetService implements OnModuleInit {
                AND la_sds.document_type = 'SDS'
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
+            LEFT JOIN latest_submitted ls
+                ON ls.sample_data_sheet_id = sheet.id
+               AND ls.loop = sheet.loop
+               AND ls.rn = 1
             WHERE 1=1
         `;
 
@@ -1017,18 +1064,8 @@ export class SampleDataSheetService implements OnModuleInit {
                 submittedAt: row.submitted,
                 canCreateSds: row.part_status === 'Active' && row.supplier_edit_status === 'Locked',
                 sdsCreated: row.sds_created || false,
-                hasDelay: row.has_delay === 1,
-                delayDays: row.has_delay === 1 && dueDate
-                    ? Math.floor((new Date(
-                        row.submitted ?
-                            moment(row.submitted).format('YYYY-MM-DD 23:59:59') :
-                            moment().format('YYYY-MM-DD 23:59:59')
-                    ).getTime() - new Date(
-                        dueDate ?
-                            moment(dueDate).format('YYYY-MM-DD 23:59:59') :
-                            moment().format('YYYY-MM-DD 23:59:59')).getTime()
-                    ) / (1000 * 60 * 60 * 24))
-                    : undefined,
+                hasDelay: !!row.has_delay,
+                delayDays: row.delay_days ?? undefined,
                 adsStatus: checker3Status,
             }
         });
@@ -1086,6 +1123,31 @@ export class SampleDataSheetService implements OnModuleInit {
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
             ),
+            latest_submitted AS (
+                SELECT
+                    sds_app.sample_data_sheet_id,
+                    sds_app.loop,
+                    CASE 
+                        WHEN sds_app.action_date > sdr_app.action_date THEN sds_app.action_date
+                        ELSE sdr_app.action_date
+                    END as action_date,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            sds_app.sample_data_sheet_id,
+                            sds_app.loop
+                        ORDER BY sds_app.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals sds_app
+                INNER JOIN sample_data_sheet_approvals sdr_app
+                    ON sdr_app.sample_data_sheet_id = sds_app.sample_data_sheet_id
+                   AND sdr_app.loop = sds_app.loop
+                   AND sdr_app.document_type = 'SDR'
+                   AND sdr_app.role = 'Approver'
+                   AND sdr_app.action = 'Approved'
+                WHERE sds_app.document_type = 'SDS'
+                  AND sds_app.role = 'Approver'
+                  AND sds_app.action = 'Approved'
+            ),
             combined_data AS (
                 -- Part 1: Records from sample_data_sheets
                 SELECT
@@ -1106,7 +1168,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     ISNULL(sheet.sdr_date, detail.due_date) AS due_date,
                     sheet.created_at,
                     sheet.loop,
-                    1 as has_sheet
+                    1 as has_sheet,
+                    sheet.has_delay,
+                    sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
                 LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
                 
@@ -1131,7 +1195,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     detail.due_date,
                     detail.created_at,
                     1 as loop,
-                    0 as has_sheet
+                    0 as has_sheet,
+                    detail.has_delay,
+                    detail.delay_days
                 FROM dbo.sds_inspection_detail detail
                 WHERE detail.sds_created = 0 AND detail.deleted_at IS NULL 
                   ${filters.pageCreatedSds ? `AND detail.part_status = 'Active' AND detail.supplier_edit_status = 'Locked'` : ''}
@@ -1146,20 +1212,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 l2_sds.action AS checker2ApprovedSds,
                 l3_sdr.action AS checker3ApprovedSdr,
                 l3_sds.action AS checker3ApprovedSds,
-                la_sds.action_date AS submitted,
-                CASE 
-                    WHEN COALESCE(cd.sdr_date, cd.due_date) IS NOT NULL THEN 
-                        CASE 
-                            WHEN DATEADD(day, 1, CAST(COALESCE(cd.sdr_date, cd.due_date) AS DATE)) <= (
-                                CASE 
-                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
-                                    ELSE GETDATE()
-                                END
-                            ) THEN 1
-                            ELSE 0
-                        END
-                    ELSE 0
-                END AS has_delay
+                ls.action_date AS submitted
             FROM combined_data cd
             LEFT JOIN dbo.sds_inspection_special_request sp
                 ON sp.inspection_detail_id = cd.inspection_detail_id
@@ -1210,6 +1263,10 @@ export class SampleDataSheetService implements OnModuleInit {
                AND la_sds.document_type = 'SDS'
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
+            LEFT JOIN latest_submitted ls
+                ON ls.sample_data_sheet_id = cd.sheet_id
+               AND ls.loop = cd.loop
+               AND ls.rn = 1
             WHERE 1=1
         `;
 
@@ -1269,37 +1326,9 @@ export class SampleDataSheetService implements OnModuleInit {
 
         let queryCount = querys;
         if (filters.hasDelay) {
-            querys += ` AND (
-                CASE 
-                    WHEN COALESCE(cd.sdr_date, cd.due_date) IS NOT NULL THEN 
-                        CASE 
-                            WHEN DATEADD(day, 1, CAST(COALESCE(cd.sdr_date, cd.due_date) AS DATE)) <= (
-                                CASE 
-                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
-                                    ELSE GETDATE()
-                                END
-                            ) THEN 1
-                            ELSE 0
-                        END
-                    ELSE 0
-                END
-            ) = 1`;
+            querys += ` AND cd.has_delay = 1`;
         } else if (filters.notHasDelay) {
-            querys += ` AND (
-                CASE 
-                    WHEN COALESCE(cd.sdr_date, cd.due_date) IS NOT NULL THEN 
-                        CASE 
-                            WHEN DATEADD(day, 1, CAST(COALESCE(cd.sdr_date, cd.due_date) AS DATE)) <= (
-                                CASE 
-                                    WHEN la_sds.action_date IS NOT NULL THEN la_sds.action_date
-                                    ELSE GETDATE()
-                                END
-                            ) THEN 1
-                            ELSE 0
-                        END
-                    ELSE 0
-                END
-            ) = 0`;
+            querys += ` AND cd.has_delay = 0`;
         }
 
         query += querys;
@@ -1335,7 +1364,10 @@ export class SampleDataSheetService implements OnModuleInit {
                     sheet.sdr_date,
                     detail.due_date,
                     sheet.inspection_detail_id,
-                    sheet.loop
+                    sheet.loop,
+                    1 as has_sheet,
+                    sheet.has_delay,
+                    sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
                 LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
                 
@@ -1351,7 +1383,10 @@ export class SampleDataSheetService implements OnModuleInit {
                     NULL as sdr_date,
                     detail.due_date,
                     detail.id as inspection_detail_id,
-                    1 as loop
+                    1 as loop,
+                    0 as has_sheet,
+                    detail.has_delay,
+                    detail.delay_days
                 FROM dbo.sds_inspection_detail detail
                 WHERE detail.sds_created = 0
                   AND detail.active_row = 'Y'
@@ -1483,18 +1518,8 @@ export class SampleDataSheetService implements OnModuleInit {
                 submittedAt: row.submitted,
                 canCreateSds: row.part_status === 'Active' && row.supplier_edit_status === 'Locked',
                 sdsCreated: row.sds_created || false,
-                hasDelay: row.has_delay === 1,
-                delayDays: row.has_delay === 1 && dueDate
-                    ? Math.floor((new Date(
-                        row.submitted ?
-                            moment(row.submitted).format('YYYY-MM-DD 23:59:59') :
-                            moment().format('YYYY-MM-DD 23:59:59')
-                    ).getTime() - new Date(
-                        dueDate ?
-                            moment(dueDate).format('YYYY-MM-DD 23:59:59') :
-                            moment().format('YYYY-MM-DD 23:59:59')).getTime()
-                    ) / (1000 * 60 * 60 * 24))
-                    : undefined,
+                hasDelay: !!row.has_delay,
+                delayDays: row.delay_days ?? undefined,
                 adsStatus: checker3Status,
             }
         });
@@ -1506,6 +1531,88 @@ export class SampleDataSheetService implements OnModuleInit {
     }
 
 
+
+    private async updateDelayStatus(
+        sampleDataSheetId: number,
+        inspectionDetailId: number,
+        sdrDate: Date,
+    ): Promise<void> {
+        try {
+            const updateQuery = `
+                WITH latest_approved AS (
+                    SELECT
+                        a.sample_data_sheet_id,
+                        a.action_date,
+                        a.document_type,
+                        a.loop,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY a.sample_data_sheet_id, a.loop, a.document_type
+                            ORDER BY a.id DESC
+                        ) AS rn
+                    FROM sample_data_sheet_approvals a
+                    WHERE a.action = 'Approved'
+                      AND a.role = 'Approver'
+                      AND a.document_type IN ('SDS', 'SDR')
+                      AND a.sample_data_sheet_id = @0
+                ),
+                both_approved AS (
+                    SELECT
+                        sds_app.sample_data_sheet_id, 
+                        sds_app.loop,
+                        CASE 
+                            WHEN sds_app.action_date >= sdr_app.action_date THEN sds_app.action_date
+                            ELSE sdr_app.action_date
+                        END AS action_date
+                    FROM latest_approved sds_app
+                    INNER JOIN latest_approved sdr_app
+                        ON sds_app.sample_data_sheet_id = sdr_app.sample_data_sheet_id
+                        AND sds_app.loop = sdr_app.loop
+                        AND sds_app.rn = 1
+                        AND sdr_app.rn = 1
+                        AND sds_app.document_type = 'SDS'
+                        AND sdr_app.document_type = 'SDR'
+                )
+                UPDATE sds
+                SET 
+                    has_delay = CASE 
+                        WHEN sds.sdr_date IS NOT NULL THEN 
+                            CASE 
+                                -- ถ้า submitted แล้ว เช็คว่า submit date > due date
+                                WHEN la.action_date IS NOT NULL 
+                                 AND CAST(sds.sdr_date AS DATE) < CAST(la.action_date AS DATE) THEN 1
+                                -- ถ้ายังไม่ submitted เช็คว่า current date > due date
+                                WHEN la.action_date IS NULL 
+                                 AND CAST(sds.sdr_date AS DATE) < CAST(GETDATE() AS DATE) THEN 1
+                                ELSE 0
+                            END
+                        ELSE 0
+                    END,
+                    delay_days = CASE 
+                        -- ถ้า submitted แล้วและ submit หลัง due date
+                        WHEN sds.sdr_date IS NOT NULL 
+                         AND la.action_date IS NOT NULL
+                         AND CAST(sds.sdr_date AS DATE) < CAST(la.action_date AS DATE) THEN 
+                            DATEDIFF(day, CAST(sds.sdr_date AS DATE), CAST(la.action_date AS DATE))
+                        -- ถ้ายังไม่ submitted และเลย due date แล้ว
+                        WHEN sds.sdr_date IS NOT NULL 
+                         AND la.action_date IS NULL
+                         AND CAST(sds.sdr_date AS DATE) < CAST(GETDATE() AS DATE) THEN 
+                            DATEDIFF(day, CAST(sds.sdr_date AS DATE), CAST(GETDATE() AS DATE))
+                        ELSE NULL
+                    END
+                FROM dbo.sample_data_sheets sds
+                LEFT JOIN both_approved la 
+                    ON la.sample_data_sheet_id = sds.id
+                    AND la.loop = sds.loop
+                WHERE sds.id = @0
+            `;
+
+            await this.dataSource.query(updateQuery, [sampleDataSheetId]);
+        } catch (error) {
+            // Log error but don't fail the main operation
+            console.error('Error updating delay status:', error);
+        }
+    }
 
     private formatMonthYear(value: Date): string {
         return moment(value).format('MM-YYYY');
@@ -1874,7 +1981,7 @@ export class SampleDataSheetService implements OnModuleInit {
             });
 
             const sampleRows = pagedSamples[pageIndex];
-            const rowHeight = 16;
+            const rowHeight = 16.7;
 
             for (let rowIndex = 0; rowIndex < sampleRows.length; rowIndex++) {
                 const row = sampleRows[rowIndex];
@@ -1888,13 +1995,30 @@ export class SampleDataSheetService implements OnModuleInit {
                     color: rgb(0, 0, 0),
                 });
 
-                page.drawText(`${row.measuringItem ?? ''}`, {
-                    x: 55,
-                    y: startY,
-                    size: fontSize,
-                    font,
-                    color: rgb(0, 0, 0),
-                });
+                // Draw measuring item with auto-shrink font size to fit column width
+                const maxMeasuringTextWidth = 80; // adjust if column width changes
+                let measuringText = `${row.measuringItem ?? ''}`.trim();
+
+                if (measuringText) {
+                    let displayText = measuringText;
+                    let currentFontSize = fontSize;
+                    let textWidth = font.widthOfTextAtSize(displayText, currentFontSize);
+
+                    // shrink font size until text fits or we reach a minimum size
+                    const minFontSize = 5;
+                    while (textWidth > maxMeasuringTextWidth && currentFontSize > minFontSize) {
+                        currentFontSize -= 0.5;
+                        textWidth = font.widthOfTextAtSize(displayText, currentFontSize);
+                    }
+
+                    page.drawText(displayText, {
+                        x: 55,
+                        y: startY,
+                        size: currentFontSize,
+                        font,
+                        color: rgb(0, 0, 0),
+                    });
+                }
 
                 page.drawText(`${row.specification ?? ''}`, {
                     x: 130,
@@ -2083,6 +2207,8 @@ export class SampleDataSheetService implements OnModuleInit {
             if (sdrAction === SdsApprovalAction.REJECTED) {
                 sheet.sdrDate = reSubmitDate ?? sheet.sdrDate;
                 await this.sheetRepo.save(sheet);
+                // Recalculate delay status after updating sdrDate
+                await this.updateDelayStatus(sheet.id, sheet.inspectionDetailId, sheet.sdrDate);
             }
 
             await this.approvalRepo.save(sdrApproval);
@@ -2128,6 +2254,8 @@ export class SampleDataSheetService implements OnModuleInit {
             if (sdsAction === SdsApprovalAction.REJECTED) {
                 sheet.sdrDate = reSubmitDate ?? sheet.sdrDate;
                 await this.sheetRepo.save(sheet);
+                // Recalculate delay status after updating sdrDate
+                await this.updateDelayStatus(sheet.id, sheet.inspectionDetailId, sheet.sdrDate);
             }
 
             await this.approvalRepo.save(sdsApproval);

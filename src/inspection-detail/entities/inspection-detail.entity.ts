@@ -98,6 +98,21 @@ export class InspectionDetailEntity {
     })
     dueDate: Date;
 
+    @Column({
+        name: 'has_delay',
+        type: 'bit',
+        nullable: false,
+        default: () => '0',
+    })
+    hasDelay: boolean;
+
+    @Column({
+        name: 'delay_days',
+        type: 'int',
+        nullable: true,
+    })
+    delayDays: number;
+
     @CreateDateColumn({ name: 'created_at', type: 'datetime2' })
     createdAt: Date;
 
