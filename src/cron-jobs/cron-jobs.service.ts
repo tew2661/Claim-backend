@@ -190,6 +190,22 @@ export class CronJobsService {
             this.logger.debug(`Found ${delayedItems.length} monthly delayed items.`);
 
             for (const item of delayedItems) {
+
+                // Calculate delay days
+                const dueDate = moment(moment(item.dueDate ?? new Date()).format('YYYY-MM-DD 23:59:59'));
+                const today = moment(moment().format('YYYY-MM-DD 23:59:59'));
+                const delayDays = today.diff(dueDate, 'days');
+
+                // Send notification logic:
+                // - Day 1: Send 1st notification
+                // - Day 5: Send 2nd notification
+                // - Day 6+: Send daily notifications
+                const shouldSendNotification = delayDays === 1 || delayDays === 5 || delayDays > 5;
+
+                if (!shouldSendNotification) {
+                    continue; // Skip days 2, 3, 4
+                }
+
                 const supplier = await this.supplierService.findByCode(item.supplierCode);
                 if (supplier && supplier.email && supplier.email.length > 0) {
                     const monthLabel = moment(moment(item.dueDate ?? new Date()).format('YYYY-MM-DD 23:59:59')).format('MM-YYYY');

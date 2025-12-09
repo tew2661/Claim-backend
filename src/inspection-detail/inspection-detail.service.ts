@@ -828,18 +828,15 @@ export class InspectionDetailService {
 
   async findMonthlyDelayedItems() {
     const now = moment();
-    // Check if today is 26th or later
-    if (now.format('DD') !== '26') {
-      return [];
-    }
 
     return this.inspectionDetailRepo.createQueryBuilder('d')
+      .leftJoinAndSelect('d.specialRequest', 's')
       .where('d.activeRow = :active', { active: 'Y' })
       .andWhere('d.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
-      .andWhere('d.dueDate BETWEEN :start AND :end', { 
-        start: now.format('YYYY-MM-01 00:00:00'), 
-        end: now.add(1,'m').format('YYYY-MM-01 23:59:59')
+      .andWhere('s.id IS NULL')
+      .andWhere('d.dueDate < :now', { 
+        now: now.format('YYYY-MM-DD 00:00:00') 
       })
       .getMany();
   }
@@ -854,7 +851,7 @@ export class InspectionDetailService {
       .andWhere('s.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
       .andWhere('s.dueDate < :now', { 
-        now: now.format('YYYY-MM-DD 23:59:59') 
+        now: now.format('YYYY-MM-DD 00:00:00') 
       })
       .getMany();
   }
