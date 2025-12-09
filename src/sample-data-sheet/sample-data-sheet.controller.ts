@@ -352,29 +352,34 @@ export class SampleDataSheetController {
     ) {
 
         // Get delay data (has_delay > 0)
-        const delayResult = await this.sampleDataSheetService.listSummaryReport({
+        const filter = {
             ...query,
             monthYear: moment().format('MM-YYYY'),
             hasDelay: true,
             dashboard: true
-        });
+        };
+        const delayResult = await this.sampleDataSheetService.listSummaryReport(filter);
+        const { hasDelay, notHasDelay } = await this.sampleDataSheetService.countSummaryReport(query);
+
         const forMonthly = {
-            delayResult: delayResult.items.filter(item => item.hasDelay),
+            delayResult: hasDelay,
             allResult: delayResult.items,
-            totalCount: delayResult.total,
+            totalCount: notHasDelay,
         };
 
-        const delayResultYearly = await this.sampleDataSheetService.listSummaryReport({
+        const filterYearly = {
             ...query,
             monthYear: undefined,
             year: moment().format('YYYY'),
             hasDelay: true,
             dashboard: true
-        });
+        }
+        const delayResultYearly = await this.sampleDataSheetService.listSummaryReport(filterYearly);
+        const { hasDelay: hasDelayYearly, notHasDelay: notHasDelayYearly } = await this.sampleDataSheetService.countSummaryReport(filterYearly);
         const forYearly = {
-            delayResult: delayResultYearly.items.filter(item => item.hasDelay),
+            delayResult: hasDelayYearly,
             allResult: delayResultYearly.items,
-            totalCount: delayResultYearly.total,
+            totalCount: notHasDelayYearly,
         };
 
         // Get inspection result data
@@ -382,11 +387,11 @@ export class SampleDataSheetController {
 
         // Calculate statistics
         const totalCount = forMonthly.totalCount;
-        const delayCount = forMonthly.delayResult.length;
+        const delayCount = forMonthly.delayResult;
         const onProcessCompleteCount = totalCount - delayCount;
 
         const totalCountYearly = forYearly.totalCount;
-        const delayCountYearly = forYearly.delayResult.length;
+        const delayCountYearly = hasDelayYearly;
         const onProcessCompleteCountYearly = totalCountYearly - delayCountYearly;
         return {
             success: true,
