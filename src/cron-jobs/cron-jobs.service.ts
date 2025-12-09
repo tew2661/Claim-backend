@@ -52,9 +52,11 @@ export class CronJobsService {
                         AND sdr_app.document_type = 'SDR'
                         AND sdr_app.role = 'Approver'
                         AND sdr_app.action = 'Approved'
+                        AND sdr_app.deleted_at IS NULL
                     WHERE sds_app.document_type = 'SDS'
                       AND sds_app.role = 'Approver'
                       AND sds_app.action = 'Approved'
+                      AND sds_app.deleted_at IS NULL
                 )
                 UPDATE sds
                 SET 

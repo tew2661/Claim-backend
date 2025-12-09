@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, Repository, IsNull } from 'typeorm';
 import { SampleDataSheetEntity } from './entities/sample-data-sheet.entity';
 import { SampleDataSheetRowEntity } from './entities/sample-data-sheet-row.entity';
 import { SampleDataSheetRowSampleEntity } from './entities/sample-data-sheet-row-sample.entity';
@@ -158,7 +158,7 @@ export class SampleDataSheetService implements OnModuleInit {
         files: { aisFile?: string; sdrFile?: string; sdrReportFile?: string },
         currentUser?: UsersEntity,
     ): Promise<SampleDataSheetResponse> {
-        const sheet = await this.sheetRepo.findOne({ where: { id } });
+        const sheet = await this.sheetRepo.findOne({ where: { id, deletedAt: IsNull() } });
         if (!sheet) {
             throw new NotFoundException('Sample Data Sheet not found');
         }
@@ -245,6 +245,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Rejected'
                   AND a.re_submit_date IS NOT NULL
+                  AND a.deleted_at IS NULL
             ),
             latest AS (
                 SELECT
@@ -258,6 +259,7 @@ export class SampleDataSheetService implements OnModuleInit {
                         ORDER BY a.id DESC
                     ) AS rn
                 FROM sample_data_sheet_approvals a
+                WHERE a.deleted_at IS NULL
             ),
             latest_approved AS (
                 SELECT
@@ -272,6 +274,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+                  AND a.deleted_at IS NULL
             ),
             latest_submitted AS (
                 SELECT
@@ -294,9 +297,11 @@ export class SampleDataSheetService implements OnModuleInit {
                    AND sdr_app.document_type = 'SDR'
                    AND sdr_app.role = 'Approver'
                    AND sdr_app.action = 'Approved'
+                   AND sdr_app.deleted_at IS NULL
                 WHERE sds_app.document_type = 'SDS'
                   AND sds_app.role = 'Approver'
                   AND sds_app.action = 'Approved'
+                  AND sds_app.deleted_at IS NULL
             )
             SELECT
                 detail.id,
@@ -332,7 +337,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 sheet.has_delay,
                 sheet.delay_days
             FROM dbo.sds_inspection_detail detail
-            LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id AND sheet.deleted_at IS NULL
             LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
             LEFT JOIN dbo.sds_inspection_special_request sp
                 ON sp.inspection_detail_id = detail.id
@@ -340,7 +345,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT MAX(id)
                     FROM dbo.sds_inspection_special_request
                     WHERE inspection_detail_id = detail.id
+                      AND deleted_at IS NULL
                 )
+               AND sp.deleted_at IS NULL
             LEFT JOIN latest l1_sdr
                 ON l1_sdr.sample_data_sheet_id = sheet.id
                AND l1_sdr.loop = sheet.loop
@@ -444,6 +451,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT 1
                     FROM dbo.sds_inspection_special_request sr_filter
                     WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                      AND sr_filter.deleted_at IS NULL
                     -- ORDER BY sr_filter.id DESC
                 )`;
             } else if (filters.sdsType.toLowerCase() === 'normal') {
@@ -451,6 +459,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT 1
                     FROM dbo.sds_inspection_special_request sr_filter
                     WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                      AND sr_filter.deleted_at IS NULL
                     -- ORDER BY sr_filter.id DESC
                 )`;
             }
@@ -478,6 +487,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Rejected'
                   AND a.re_submit_date IS NOT NULL
+                  AND a.deleted_at IS NULL
             ),
             latest AS (
                 SELECT
@@ -491,6 +501,7 @@ export class SampleDataSheetService implements OnModuleInit {
                         ORDER BY a.id DESC
                     ) AS rn
                 FROM sample_data_sheet_approvals a
+                WHERE a.deleted_at IS NULL
             ),
             latest_approved AS (
                 SELECT
@@ -505,6 +516,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+                  AND a.deleted_at IS NULL
             ),
             latest_submitted AS (
                 SELECT
@@ -527,14 +539,16 @@ export class SampleDataSheetService implements OnModuleInit {
                    AND sdr_app.document_type = 'SDR'
                    AND sdr_app.role = 'Approver'
                    AND sdr_app.action = 'Approved'
+                   AND sdr_app.deleted_at IS NULL
                 WHERE sds_app.document_type = 'SDS'
                   AND sds_app.role = 'Approver'
                   AND sds_app.action = 'Approved'
+                  AND sds_app.deleted_at IS NULL
             )
             SELECT
                 COUNT(*) AS total
             FROM dbo.sds_inspection_detail detail
-            LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id
+            LEFT JOIN dbo.sample_data_sheets sheet ON sheet.inspection_detail_id = detail.id AND sheet.deleted_at IS NULL
             LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
             LEFT JOIN dbo.sds_inspection_special_request sp
                 ON sp.inspection_detail_id = detail.id
@@ -542,7 +556,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT MAX(id)
                     FROM dbo.sds_inspection_special_request
                     WHERE inspection_detail_id = detail.id
+                      AND deleted_at IS NULL
                 )
+               AND sp.deleted_at IS NULL
             LEFT JOIN latest l1_sdr
                 ON l1_sdr.sample_data_sheet_id = sheet.id
                AND l1_sdr.loop = sheet.loop
@@ -749,6 +765,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Rejected'
                   AND a.re_submit_date IS NOT NULL
+                  AND a.deleted_at IS NULL
             ),
             latest AS (
                 SELECT
@@ -762,6 +779,7 @@ export class SampleDataSheetService implements OnModuleInit {
                         ORDER BY a.id DESC
                     ) AS rn
                 FROM sample_data_sheet_approvals a
+                WHERE a.deleted_at IS NULL
             ),
             latest_approved AS (
                 SELECT
@@ -776,6 +794,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+                  AND a.deleted_at IS NULL
             ),
             latest_submitted AS (
                 SELECT
@@ -798,9 +817,11 @@ export class SampleDataSheetService implements OnModuleInit {
                    AND sdr_app.document_type = 'SDR'
                    AND sdr_app.role = 'Approver'
                    AND sdr_app.action = 'Approved'
+                   AND sdr_app.deleted_at IS NULL
                 WHERE sds_app.document_type = 'SDS'
                   AND sds_app.role = 'Approver'
                   AND sds_app.action = 'Approved'
+                  AND sds_app.deleted_at IS NULL
             )
             SELECT
                 sheet.id,
@@ -843,7 +864,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT MAX(id)
                     FROM dbo.sds_inspection_special_request
                     WHERE inspection_detail_id = detail.id
+                      AND deleted_at IS NULL
                 )
+               AND sp.deleted_at IS NULL
             LEFT JOIN latest l1_sdr
                 ON l1_sdr.sample_data_sheet_id = sheet.id
                AND l1_sdr.loop = sheet.loop
@@ -890,7 +913,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 ON ls.sample_data_sheet_id = sheet.id
                AND ls.loop = sheet.loop
                AND ls.rn = 1
-            WHERE 1=1
+            WHERE 1=1 AND sheet.deleted_at IS NULL
         `;
 
         const filterParams: any[] = [];
@@ -900,6 +923,10 @@ export class SampleDataSheetService implements OnModuleInit {
         if (supplierCode) {
             querys += ` AND detail.supplier_code = @${paramIndex}`;
             filterParams.push(supplierCode);
+            paramIndex++;
+        } else if (filters.supplierCode && filters.supplierCode.toLowerCase() !== 'all') {
+            querys += ` AND detail.supplier_code = @${paramIndex}`;
+            filterParams.push(filters.supplierCode);
             paramIndex++;
         }
 
@@ -934,6 +961,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT 1
                     FROM dbo.sds_inspection_special_request sr_filter
                     WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                      AND sr_filter.deleted_at IS NULL
                     -- ORDER BY sr_filter.id DESC
                 )`;
             } else if (filters.sdsType.toLowerCase() === 'normal') {
@@ -941,6 +969,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT 1
                     FROM dbo.sds_inspection_special_request sr_filter
                     WHERE sr_filter.inspection_detail_id = sheet.inspection_detail_id
+                      AND sr_filter.deleted_at IS NULL
                     -- ORDER BY sr_filter.id DESC
                 )`;
             }
@@ -956,7 +985,7 @@ export class SampleDataSheetService implements OnModuleInit {
             SELECT COUNT(*) as total
             FROM dbo.sample_data_sheets sheet
             LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
-            WHERE 1=1
+            WHERE sheet.deleted_at IS NULL
         `;
 
         const rawResults = await this.dataSource.query(query, queryParams);
@@ -1095,6 +1124,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Rejected'
                   AND a.re_submit_date IS NOT NULL
+                  AND a.deleted_at IS NULL
             ),
             latest AS (
                 SELECT
@@ -1108,6 +1138,7 @@ export class SampleDataSheetService implements OnModuleInit {
                         ORDER BY a.id DESC
                     ) AS rn
                 FROM sample_data_sheet_approvals a
+                WHERE a.deleted_at IS NULL
             ),
             latest_approved AS (
                 SELECT
@@ -1122,6 +1153,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+                  AND a.deleted_at IS NULL
             ),
             latest_submitted AS (
                 SELECT
@@ -1144,9 +1176,11 @@ export class SampleDataSheetService implements OnModuleInit {
                    AND sdr_app.document_type = 'SDR'
                    AND sdr_app.role = 'Approver'
                    AND sdr_app.action = 'Approved'
+                   AND sdr_app.deleted_at IS NULL
                 WHERE sds_app.document_type = 'SDS'
                   AND sds_app.role = 'Approver'
                   AND sds_app.action = 'Approved'
+                  AND sds_app.deleted_at IS NULL
             ),
             combined_data AS (
                 -- Part 1: Records from sample_data_sheets
@@ -1172,7 +1206,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     sheet.has_delay,
                     sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
-                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
+                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
+                    AND detail.deleted_at IS NULL
+                WHERE sheet.deleted_at IS NULL
                 
                 UNION ALL
                 
@@ -1185,8 +1221,8 @@ export class SampleDataSheetService implements OnModuleInit {
                     detail.part_name,
                     detail.model,
                     detail.id as inspection_detail_id,
-                    NULL as sdr_date,
                     NULL as production_08_2025,
+                    NULL as sdr_date,
                     detail.part_status,
                     detail.supplier_edit_status,
                     detail.sds_created,
@@ -1220,7 +1256,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT MAX(id)
                     FROM dbo.sds_inspection_special_request
                     WHERE inspection_detail_id = cd.inspection_detail_id
+                      AND deleted_at IS NULL
                 )
+               AND sp.deleted_at IS NULL
             LEFT JOIN latest l1_sdr
                 ON l1_sdr.sample_data_sheet_id = cd.sheet_id
                AND l1_sdr.loop = cd.loop
@@ -1369,7 +1407,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     sheet.has_delay,
                     sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
-                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
+                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
+                AND detail.deleted_at IS NULL
+                AND sheet.deleted_at IS NULL
                 
                 UNION ALL
                 
@@ -1549,6 +1589,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+                  AND a.deleted_at IS NULL
             ),
             combined_data AS (
                 SELECT 
@@ -1566,7 +1607,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     sheet.has_delay,
                     sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
-                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
+                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
+                AND detail.deleted_at IS NULL
+                AND sheet.deleted_at IS NULL
                 
                 UNION ALL
                 
@@ -1600,7 +1643,9 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT MAX(id)
                     FROM dbo.sds_inspection_special_request
                     WHERE inspection_detail_id = cd.inspection_detail_id
+                      AND deleted_at IS NULL
                 )
+               AND sp.deleted_at IS NULL
             LEFT JOIN latest_approved la_sds
                 ON la_sds.sample_data_sheet_id = cd.sheet_id
                AND la_sds.loop = cd.loop
@@ -1882,7 +1927,8 @@ export class SampleDataSheetService implements OnModuleInit {
                 FROM sample_data_sheets AS sds
                 JOIN sample_data_sheet_rows AS r ON r.sample_data_sheet_id = sds.id
                 JOIN sample_data_sheet_row_samples AS sm ON sm.sample_data_sheet_row_id = r.id
-                WHERE (
+                WHERE sds.deleted_at IS NULL
+                AND (
                     TRY_CAST(sm.value AS FLOAT) > TRY_CAST(r.specification AS FLOAT) + r.tolerance_plus
                     OR TRY_CAST(sm.value AS FLOAT) < TRY_CAST(r.specification AS FLOAT) - r.tolerance_minus
                 )
@@ -1891,7 +1937,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 ORDER BY ng_count DESC
                 OFFSET ${skip} ROWS FETCH NEXT ${limit} ROWS ONLY
             ) AS sum_sds
-            JOIN sample_data_sheets AS sds ON sds.id = sum_sds.id
+            JOIN sample_data_sheets AS sds ON sds.id = sum_sds.id AND sds.deleted_at IS NULL
             LEFT JOIN sds_inspection_detail AS detail ON detail.id = sds.inspection_detail_id AND detail.deleted_at IS NULL
             LEFT JOIN latest l1_sdr ON l1_sdr.sample_data_sheet_id = sds.id AND l1_sdr.loop = sds.loop AND l1_sdr.document_type = 'SDR' AND l1_sdr.role = 'Checker 1' AND l1_sdr.rn = 1
             LEFT JOIN latest l1_sds ON l1_sds.sample_data_sheet_id = sds.id AND l1_sds.loop = sds.loop AND l1_sds.document_type = 'SDS' AND l1_sds.role = 'Checker 1' AND l1_sds.rn = 1
@@ -1909,7 +1955,8 @@ export class SampleDataSheetService implements OnModuleInit {
             FROM sample_data_sheets AS sds
             JOIN sample_data_sheet_rows AS r ON r.sample_data_sheet_id = sds.id
             JOIN sample_data_sheet_row_samples AS sm ON sm.sample_data_sheet_row_id = r.id
-            WHERE (
+            WHERE sds.deleted_at IS NULL
+            AND (
                 TRY_CAST(sm.value AS FLOAT) > TRY_CAST(r.specification AS FLOAT) + r.tolerance_plus
                 OR TRY_CAST(sm.value AS FLOAT) < TRY_CAST(r.specification AS FLOAT) - r.tolerance_minus
             )
@@ -1922,7 +1969,7 @@ export class SampleDataSheetService implements OnModuleInit {
         const totalSdsSql = `
             SELECT COUNT(*) as total 
             FROM sample_data_sheets sds 
-            WHERE 1=1 ${dateFilter}
+            WHERE sds.deleted_at IS NULL ${dateFilter}
         `;
         const totalSdsResult = await this.dataSource.query(totalSdsSql, params);
         const totalSds = totalSdsResult[0]?.total || 0;
@@ -1992,7 +2039,7 @@ export class SampleDataSheetService implements OnModuleInit {
 
     async findById(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
-            where: { id },
+            where: { id, deletedAt: IsNull() },
             relations: ['rows', 'rows.samples'],
         });
 
@@ -2005,7 +2052,30 @@ export class SampleDataSheetService implements OnModuleInit {
 
     async findByInspectionDetailForSdsId(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
-            where: { id },
+            where: { id, deletedAt: IsNull() },
+            relations: ['rows', 'rows.samples', 'approvals', 'approvals.actionByUser'],
+        });
+
+        if (!sheet) {
+            return null;
+        }
+
+        return this.mapSheet(sheet);
+    }
+
+    async findSdsByInspectionId(inspectionId: number): Promise<SampleDataSheetResponse | null> {
+        // First verify that the inspection detail exists and has sds_created = 1
+        const inspectionDetail = await this.inspectionRepo.findOne({
+            where: { id: inspectionId, sdsCreated: true },
+        });
+
+        if (!inspectionDetail) {
+            return null;
+        }
+
+        // Find the sample data sheet for this inspection detail
+        const sheet = await this.sheetRepo.findOne({
+            where: { inspectionDetailId: inspectionId, deletedAt: IsNull() },
             relations: ['rows', 'rows.samples', 'approvals', 'approvals.actionByUser'],
         });
 
@@ -2292,7 +2362,7 @@ export class SampleDataSheetService implements OnModuleInit {
     };
 
     async submitApproval(dto: SdsApprovalDto, actionByUser: UsersEntity): Promise<void> {
-        const sheet = await this.sheetRepo.findOne({ where: { id: dto.id }, relations: ['inspectionDetail'] });
+        const sheet = await this.sheetRepo.findOne({ where: { id: dto.id, deletedAt: IsNull() }, relations: ['inspectionDetail'] });
         if (!sheet) {
             throw new NotFoundException('Sample Data Sheet not found');
         }
@@ -2604,6 +2674,7 @@ export class SampleDataSheetService implements OnModuleInit {
             .createQueryBuilder('approval')
             .leftJoinAndSelect('approval.actionByUser', 'user')
             .leftJoinAndSelect('approval.sampleDataSheet', 'sheet')
+            .where('approval.deletedAt IS NULL')
             .orderBy('approval.actionDate', 'DESC');
 
         if (query.partNo) {
@@ -2651,5 +2722,14 @@ export class SampleDataSheetService implements OnModuleInit {
             actionDate: approval.actionDate,
             remark: approval.remark || '',
         }));
+    }
+
+    async removeSampleDataSheetByInspectionId(id: number): Promise<void> {
+        const sheet = await this.sheetRepo.findOne({ where: { inspectionDetailId: id, deletedAt: IsNull() } });
+        if (!sheet) {
+            throw new NotFoundException('Sample Data Sheet not found');
+        }
+
+        await this.sheetRepo.softDelete({ id: sheet.id }); 
     }
 }

@@ -271,7 +271,10 @@ export class InspectionDetailService {
     existing.dueDate = new Date(now.getFullYear(), now.getMonth(), 25);
 
     existing.updatedBy = actionBy?.id;
-    existing.sdsCreated = false;
+
+    if (actionBy?.role === 'Supplier') {
+      existing.sdsCreated = false;
+    }
 
     await this.inspectionDetailRepo.save(existing);
 
@@ -561,6 +564,7 @@ export class InspectionDetailService {
         createdAt: s.createdAt,
       })),
       dueDate: entity.dueDate,
+      createdAt: entity.createdAt,
     };
   }
 

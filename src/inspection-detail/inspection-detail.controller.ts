@@ -189,6 +189,12 @@ export class InspectionDetailController {
       // parsedBody.supplierEditStatus = 'Locked';
       parsedBody.partStatus = 'Inactive';
     }
+    
+    try {
+      if (actionBy?.role === 'Supplier' && actionBy?.supplier?.supplierCode) {
+        await this.sampleDataSheetService.removeSampleDataSheetByInspectionId(recordId);
+      }
+    } catch (error) {}
 
     const result = await this.inspectionDetailService.update(recordId, parsedBody, actionBy);
     return {

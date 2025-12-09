@@ -185,6 +185,25 @@ export class SampleDataSheetController {
         };
     }
 
+    @Get('by-inspection-id/:inspectionId')
+    @UseGuards(JwtAuthGuard)
+    async getSdsByInspectionId(@Param('inspectionId') inspectionId: string) {
+        const id = Number(inspectionId);
+        if (!id || Number.isNaN(id)) {
+            throw new BadRequestException('Invalid inspection detail id');
+        }
+
+        const sheet = await this.sampleDataSheetService.findSdsByInspectionId(id);
+        if (!sheet) {
+            throw new NotFoundException('Sample Data Sheet not found or inspection detail has no SDS created');
+        }
+
+        return {
+            success: true,
+            data: sheet,
+        };
+    }
+
     @Put(':id')
     @UseGuards(JwtAuthGuard)
     @UseInterceptors(
