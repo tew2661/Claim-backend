@@ -127,9 +127,9 @@ export class CronJobsService {
     }
 
     async handleMonthlyReminder() {
-        const now = new Date();
+        const now = moment();
         // Run only on the 1st of the month
-        if (now.getDate() !== 1) {
+        if (now.date() !== 1) {
             return;
         }
 
@@ -143,8 +143,8 @@ export class CronJobsService {
             for (const item of activeItems) {
                 const supplier = await this.supplierService.findByCode(item.supplierCode);
                 if (supplier && supplier.email && supplier.email.length > 0) {
-                    const monthLabel = moment(item.dueDate ?? new Date()).format('MM-YYYY');
-                    const dueDate25 = moment(item.dueDate ?? new Date()).set('date', 25).format('DD-MM-YYYY');
+                    const monthLabel = moment(moment(item.dueDate ?? new Date()).format('YYYY-MM-DD 23:59:59')).format('MM-YYYY');
+                    const dueDate25 = moment(moment(item.dueDate ?? new Date()).format('YYYY-MM-DD 23:59:59')).set('date', 25).format('DD-MM-YYYY');
                     const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
                     const subject = `SDS Monthly Request Reminder: ${item.partNo}`;
                     const html = `
@@ -192,8 +192,8 @@ export class CronJobsService {
             for (const item of delayedItems) {
                 const supplier = await this.supplierService.findByCode(item.supplierCode);
                 if (supplier && supplier.email && supplier.email.length > 0) {
-                    const monthLabel = require('moment')(item.dueDate ?? new Date()).format('MM-YYYY');
-                    const dueDateLabel = require('moment')(item.dueDate ?? new Date()).format('DD-MM-YYYY');
+                    const monthLabel = moment(moment(item.dueDate ?? new Date()).format('YYYY-MM-DD 23:59:59')).format('MM-YYYY');
+                    const dueDateLabel = moment(moment(item.dueDate ?? new Date()).format('YYYY-MM-DD 23:59:59')).format('DD-MM-YYYY');
                     const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
                     const subject = `SDS Monthly Request OVERDUE: ${item.partNo}`;
                     const html = `
@@ -244,10 +244,25 @@ export class CronJobsService {
                 const inspectionDetail = request;
                 if (!inspectionDetail) continue;
 
+                // Calculate delay days
+                const dueDate = moment(moment(request.dueDate ?? new Date()).format('YYYY-MM-DD 23:59:59'));
+                const today = moment(moment().format('YYYY-MM-DD 23:59:59'));
+                const delayDays = today.diff(dueDate, 'days');
+
+                // Send notification logic:
+                // - Day 1: Send 1st notification
+                // - Day 5: Send 2nd notification
+                // - Day 6+: Send daily notifications
+                const shouldSendNotification = delayDays === 1 || delayDays === 5 || delayDays > 5;
+
+                if (!shouldSendNotification) {
+                    continue; // Skip days 2, 3, 4
+                }
+
                 const supplier = await this.supplierService.findByCode(inspectionDetail.supplierCode);
                 if (supplier && supplier.email && supplier.email.length > 0) {
-                    const monthLabel = require('moment')(request.dueDate ?? new Date()).format('MM-YYYY');
-                    const dueDateLabel = require('moment')(request.dueDate ?? new Date()).format('DD-MM-YYYY');
+                    const monthLabel = dueDate.format('MM-YYYY');
+                    const dueDateLabel = dueDate.format('DD-MM-YYYY');
                     const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
                     const subject = `SDS Monthly / Special Request OVERDUE: ${inspectionDetail.partNo}`;
                     const html = `

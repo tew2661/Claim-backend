@@ -827,26 +827,25 @@ export class InspectionDetailService {
   }
 
   async findMonthlyDelayedItems() {
-    const now = new Date();
+    const now = moment();
     // Check if today is 26th or later
-    if (now.getDate() < 26) {
+    if (now.format('DD') !== '26') {
       return [];
     }
 
-    // Find items due this month that are not yet created (sdsCreated = false)
-    // and active
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
     return this.inspectionDetailRepo.createQueryBuilder('d')
       .where('d.activeRow = :active', { active: 'Y' })
+      .andWhere('d.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
-      .andWhere('d.dueDate BETWEEN :start AND :end', { start: startOfMonth, end: endOfMonth })
+      .andWhere('d.dueDate BETWEEN :start AND :end', { 
+        start: now.format('YYYY-MM-01 00:00:00'), 
+        end: now.add(1,'m').format('YYYY-MM-01 23:59:59')
+      })
       .getMany();
   }
 
   async findSpecialRequestDelayedItems() {
-    const now = new Date();
+    const now = moment();
 
     // Find special requests that are pending and due date is passed
     return this.inspectionDetailRepo.createQueryBuilder('d')
@@ -854,17 +853,14 @@ export class InspectionDetailService {
       .where('s.activeRow = :active', { active: 'Y' })
       .andWhere('s.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
-      .andWhere('s.dueDate < :now', { now })
+      .andWhere('s.dueDate < :now', { 
+        now: now.format('YYYY-MM-DD 23:59:59') 
+      })
       .getMany();
   }
 
   async findActiveInspectionDetails() {
-    const now = new Date();
-
-    // Find items due this month that are not yet created (sdsCreated = false)
-    // and active
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const now = moment();
 
     return this.inspectionDetailRepo.createQueryBuilder('d')
       .leftJoinAndSelect('d.specialRequest', 's') // Join to check if it's NOT a special request
@@ -872,7 +868,10 @@ export class InspectionDetailService {
       .andWhere('d.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
       .andWhere('s.id IS NULL')
-      .andWhere('d.dueDate BETWEEN :start AND :end', { start: startOfMonth, end: endOfMonth })
+      .andWhere('d.dueDate BETWEEN :start AND :end', { 
+        start: now.format('YYYY-MM-01 00:00:00'), 
+        end: now.add(1,'m').format('YYYY-MM-01 23:59:59')
+      })
       .getMany();
   }
 }
