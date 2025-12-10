@@ -159,6 +159,8 @@ export class CronJobsService {
                                                     <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${item.partNo}</strong></td></tr>
                                                     <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${item.partName}</strong></td></tr>
                                                     <tr><td style="padding-right:10px;">Model :</td><td><strong>${item.model}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${item.supplierEditStatus}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${item.partStatus}</strong></td></tr>
                                                 </table>
 
                                                 <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
@@ -225,6 +227,8 @@ export class CronJobsService {
                                                     <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${item.partNo}</strong></td></tr>
                                                     <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${item.partName}</strong></td></tr>
                                                     <tr><td style="padding-right:10px;">Model :</td><td><strong>${item.model}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${item.supplierEditStatus}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${item.partStatus}</strong></td></tr>
                                                 </table>
 
                                                 <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
@@ -294,6 +298,8 @@ export class CronJobsService {
                                                     <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${inspectionDetail.partNo}</strong></td></tr>
                                                     <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${inspectionDetail.partName}</strong></td></tr>
                                                     <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${inspectionDetail.supplierEditStatus}</strong></td></tr>
+                                                    <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${inspectionDetail.partStatus}</strong></td></tr>
                                                 </table>
 
                                                 <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>

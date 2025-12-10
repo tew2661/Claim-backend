@@ -2367,6 +2367,7 @@ export class SampleDataSheetService implements OnModuleInit {
             throw new NotFoundException('Sample Data Sheet not found');
         }
 
+        const now = new Date();
         const reSubmitDateRaw = dto.reSubmitDate ? new Date(dto.reSubmitDate) : null;
         const reSubmitDate = reSubmitDateRaw && !Number.isNaN(reSubmitDateRaw.getTime()) ? reSubmitDateRaw : null;
 
@@ -2572,6 +2573,8 @@ export class SampleDataSheetService implements OnModuleInit {
                                                                     <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${sheet.partNo}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${sheet.partName}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Model :</td><td><strong>${sheet.model}</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionByUser?.supplier?.supplierName || actionByUser?.name || '-' }</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                                                                 </table>
 
                                                                 <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
@@ -2601,6 +2604,8 @@ export class SampleDataSheetService implements OnModuleInit {
                                                                     <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${sheet.partNo}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${sheet.partName}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Model :</td><td><strong>${sheet.model}</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionByUser?.supplier?.supplierName || actionByUser?.name || '-' }</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                                                                 </table>
 
                                                                 <p style="margin:14px 0 6px 0;">Kindly Review Details in MENU : <strong>Summary Report</strong></p>

@@ -122,6 +122,20 @@ export class InspectionDetailController {
     };
   }
 
+  @Put('unlock-request/:id')
+  @UseGuards(JwtAuthGuard)
+  async unlockRequest(
+    @Param('id') id: string,
+    @Body() body: { partNo: string },
+    @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } }
+  ) {
+    await this.inspectionDetailService.sendUnlockRequest(Number(id), body.partNo, actionBy);
+    return {
+      success: true,
+      message: 'Unlock request sent successfully',
+    };
+  }
+
   @Put(':id')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
@@ -403,6 +417,5 @@ export class InspectionDetailController {
       data,
     };
   }
-
 
 }

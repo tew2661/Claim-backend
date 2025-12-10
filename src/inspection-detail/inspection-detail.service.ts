@@ -160,6 +160,10 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${savedDetail.partNo}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${savedDetail.partName}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${savedDetail.model}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${savedDetail.supplierEditStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${savedDetail.partStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
 
               <p style="margin:14px 0 6px 0;">To allow Supplier to Edit Inspection Details, Please change Setting in Menu : <strong>Inspection Detail</strong> following below;</p>
@@ -197,6 +201,10 @@ export class InspectionDetailService {
                   <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${savedDetail.partNo}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${savedDetail.partName}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Model :</td><td><strong>${savedDetail.model}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${savedDetail.supplierEditStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${savedDetail.partStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                 </table>
 
                 <p style="margin:14px 0 6px 0;">Kindly Review Details in MENU : <strong>Inspection Detail</strong>.</p>
@@ -359,6 +367,10 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${existing.partNo}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${existing.partName}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${existing.model}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${existing.supplierEditStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${existing.partStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
 
               <p style="margin:14px 0 6px 0;">To Active this Part No., Please change Setting in Menu : <strong>Inspection Detail</strong> following below;</p>
@@ -399,6 +411,10 @@ export class InspectionDetailService {
                   <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${existing.partNo}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${existing.partName}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Model :</td><td><strong>${existing.model}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${existing.supplierEditStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${existing.partStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                 </table>
 
                 <p style="margin:14px 0 6px 0;">Kindly Review Details in MENU : <strong>Inspection Detail</strong>.</p>
@@ -570,7 +586,7 @@ export class InspectionDetailService {
 
   async createSpecialRequest(dto: CreateSpecialRequestDto, actionBy?: UsersEntity) {
     const stringSpecialRequestItems = JSON.stringify(dto.specialRequestItems || [])
-
+    const now = new Date();
     const inspectionDetail = await this.inspectionDetailRepo.findOne({
       where: { id: dto.inspectionDetailId },
     });
@@ -664,6 +680,10 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${inspectionDetail.partNo}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${inspectionDetail.partName}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${inspectionDetail.supplierEditStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${inspectionDetail.partStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
 
               <p style="margin:14px 0 6px 0;">To Submit SDS Monthly Request., Please access in MENU : <strong>Create SDS</strong></p>
@@ -871,4 +891,82 @@ export class InspectionDetailService {
       })
       .getMany();
   }
+
+  async sendUnlockRequest(inspectionDetailId: number, partNo: string, actionBy: UsersEntity) {
+    // ดึงข้อมูล Inspection Detail
+    const inspectionDetail = await this.inspectionDetailRepo.findOne({
+      where: { id: inspectionDetailId, activeRow: ActiveStatus.YES }
+    });
+
+    if (!inspectionDetail) {
+      throw new NotFoundException('Inspection Detail not found');
+    }
+
+    // ดึงรายชื่อผู้ใช้ที่มี accessMasterManagement = 'Y'
+    const masterUsers = await this.inspectionDetailRepo.manager
+      .getRepository(UsersEntity)
+      .createQueryBuilder('user')
+      .where('user.accessMasterManagement = :access', { access: 'Y' })
+      .andWhere('user.activeRow = :active', { active: 'Y' })
+      .andWhere('user.active = :active', { active: 'Y' })
+      .getMany();
+
+    if (!masterUsers || masterUsers.length === 0) {
+      throw new NotFoundException('No master management users found');
+    }
+
+    // สร้าง email content
+    const supplierName = actionBy?.supplier?.supplierName || actionBy?.name || 'Unknown';
+    const baseUrl = process.env.MAIL_LINK_WEBAPP_JTEKT_SDS ?? 'http://192.168.3.156:8000/';
+    const requestDate = moment().format('DD-MM-YYYY HH:mm');
+    
+    const htmlContent = `
+      <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
+        <p style="margin:0 0 6px 0;">Dear JATH User,</p>
+        <p style="margin:0 0 10px 0;">
+          You have received <span style="color:#f59e0b; font-weight:700;">Unlock Request - Inspection Detail</span>
+        </p>
+        <p style="margin:0 0 10px 0;">A supplier has requested to unlock the following Inspection Detail for editing:</p>
+
+        <table style="margin:10px 0;">
+          <tr><td style="padding-right:10px;">Supplier Name :</td><td><strong>${inspectionDetail.supplierName}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${inspectionDetail.partNo}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${inspectionDetail.partName}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${inspectionDetail.supplierEditStatus}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${inspectionDetail.partStatus}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${supplierName}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${requestDate}</strong></td></tr>
+        </table>
+
+        <p style="margin:14px 0 6px 0;">Please review and take appropriate action in MENU : <strong>Inspection Detail</strong></p>
+        <p style="margin:6px 0;">Please access Sample Data Sheet (SDS) through below link;</p>
+        <p style="margin:6px 0;"><a href="${baseUrl}" target="_blank" rel="noopener" style="color:#1e88e5;">${baseUrl}</a></p>
+
+        <p style="margin:18px 0 6px 0;">Thank you and Best regards,</p>
+        <p style="margin:0 0 18px 0;">Sample Data Sheet System</p>
+
+        <p style="margin:0; padding:10px; border:1px dashed #999; background:#f7f7f7; font-size:12px;">
+          THIS IS AN AUTOMATED MESSAGE - PLEASE DO NOT REPLY THIS EMAIL.
+        </p>
+      </div>
+    `;
+
+    // ส่งอีเมลไปยังผู้ใช้ทุกคนที่มี accessMasterManagement = 'Y'
+    const emailPromises = masterUsers.map(user => 
+      this.emailService.sendEmail(
+        user.email,
+        `Unlock Request - Part No: ${inspectionDetail.partNo}`,
+        htmlContent
+      )
+    );
+
+    Promise.all(emailPromises);
+
+    return {
+      message: 'Unlock request sent successfully',
+      sentTo: masterUsers.length,
+    };
+  }
 }
+
