@@ -29,8 +29,8 @@ export class SampleDataSheetRowEntity {
     @Column({ name: 'measuring_item', type: 'nvarchar', length: 255 })
     measuringItem: string;
 
-    @Column({ name: 'specification', type: 'nvarchar', length: 100 })
-    specification: string;
+    @Column({ name: 'specification', type: 'decimal', precision: 18, scale: 4 })
+    specification: number;
 
     @Column({ name: 'rank', type: 'nvarchar', length: 1 })
     rank: string;
@@ -41,10 +41,10 @@ export class SampleDataSheetRowEntity {
     @Column({ name: 'remark', type: 'nvarchar', length: 255, nullable: true })
     remark: string;
 
-    @Column({ name: 'tolerance_plus', type: 'int', nullable: true })
+    @Column({ name: 'tolerance_plus', type: 'decimal', precision: 18, scale: 4, nullable: true })
     tolerancePlus: number;
 
-    @Column({ name: 'tolerance_minus', type: 'int', nullable: true })
+    @Column({ name: 'tolerance_minus', type: 'decimal', precision: 18, scale: 4, nullable: true })
     toleranceMinus: number;
 
     @Column({ name: 'sample_qty', type: 'int' })

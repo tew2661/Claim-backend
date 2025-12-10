@@ -32,14 +32,14 @@ export class InspectionItemEntity {
     @Column({ name: 'measuring_item', type: 'nvarchar', length: 255 })
     measuringItem: string;
 
-    @Column({ name: 'specification', type: 'nvarchar', length: 100 })
-    specification: string;
+    @Column({ name: 'specification', type: 'decimal', precision: 18, scale: 4 })
+    specification: number;
 
-    @Column({ name: 'tolerance_plus', type: 'nvarchar', length: 50 })
-    tolerancePlus: string;
+    @Column({ name: 'tolerance_plus', type: 'decimal', precision: 18, scale: 4 })
+    tolerancePlus: number;
 
-    @Column({ name: 'tolerance_minus', type: 'nvarchar', length: 50 })
-    toleranceMinus: string;
+    @Column({ name: 'tolerance_minus', type: 'decimal', precision: 18, scale: 4 })
+    toleranceMinus: number;
 
     @Column({ name: 'inspection_instrument', type: 'nvarchar', length: 255 })
     inspectionInstrument: string;

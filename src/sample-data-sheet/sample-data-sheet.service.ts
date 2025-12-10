@@ -47,7 +47,7 @@ interface SampleRow {
     sampleDataSheetId?: number;
     no?: number;
     measuringItem?: string;
-    specification?: string;
+    specification?: number;
     rank?: string;
     inspectionInstrument?: string;
     remark?: string;
@@ -1361,7 +1361,11 @@ export class SampleDataSheetService implements OnModuleInit {
                 querys += ` AND sp.id IS NULL`;
             }
         }
-        
+
+        if (filters.notCompleted) {
+            querys += ` AND ls.action_date IS NULL`;
+        }
+
         let queryCount = `${querys}`;
         if (filters.hasDelay) {
             querys += ` AND cd.has_delay = 1`;
@@ -1390,6 +1394,34 @@ export class SampleDataSheetService implements OnModuleInit {
                     ) AS rn
                 FROM sample_data_sheet_approvals a
                 WHERE a.action = 'Approved'
+                  AND a.deleted_at IS NULL
+            ),
+            latest_submitted AS (
+                SELECT
+                    sds_app.sample_data_sheet_id,
+                    sds_app.loop,
+                    CASE 
+                        WHEN sds_app.action_date > sdr_app.action_date THEN sds_app.action_date
+                        ELSE sdr_app.action_date
+                    END as action_date,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY 
+                            sds_app.sample_data_sheet_id,
+                            sds_app.loop
+                        ORDER BY sds_app.id DESC
+                    ) AS rn
+                FROM sample_data_sheet_approvals sds_app
+                INNER JOIN sample_data_sheet_approvals sdr_app
+                    ON sdr_app.sample_data_sheet_id = sds_app.sample_data_sheet_id
+                   AND sdr_app.loop = sds_app.loop
+                   AND sdr_app.document_type = 'SDR'
+                   AND sdr_app.role = 'Approver'
+                   AND sdr_app.action = 'Approved'
+                   AND sdr_app.deleted_at IS NULL
+                WHERE sds_app.document_type = 'SDS'
+                  AND sds_app.role = 'Approver'
+                  AND sds_app.action = 'Approved'
+                  AND sds_app.deleted_at IS NULL
             ),
             combined_data AS (
                 SELECT 
@@ -1441,13 +1473,19 @@ export class SampleDataSheetService implements OnModuleInit {
                     SELECT MAX(id)
                     FROM dbo.sds_inspection_special_request
                     WHERE inspection_detail_id = cd.inspection_detail_id
+                      AND deleted_at IS NULL
                 )
+               AND sp.deleted_at IS NULL
             LEFT JOIN latest_approved la_sds
                 ON la_sds.sample_data_sheet_id = cd.sheet_id
                AND la_sds.loop = cd.loop
                AND la_sds.document_type = 'SDS'
                AND la_sds.role = 'Approver'
                AND la_sds.rn = 1
+            LEFT JOIN latest_submitted ls
+                ON ls.sample_data_sheet_id = cd.sheet_id
+               AND ls.loop = cd.loop
+               AND ls.rn = 1
             WHERE 1=1
         `;
 
@@ -1820,7 +1858,7 @@ export class SampleDataSheetService implements OnModuleInit {
             sampleDataSheetId: sheetId,
             no: Number(row.no ?? index + 1),
             measuringItem: String(row.measuringItem),
-            specification: String(row.specification),
+            specification: Number(row.specification),
             rank: String(row.rank),
             inspectionInstrument: String(row.inspectionInstrument),
             remark: row.remark ? String(row.remark) : null,
@@ -1830,8 +1868,8 @@ export class SampleDataSheetService implements OnModuleInit {
             r: row.r ? String(row.r) : null,
             cp: row.cp ? String(row.cp) : null,
             cpk: row.cpk ? String(row.cpk) : null,
-            tolerancePlus: item?.tolerancePlus ? (isNaN(parseInt(item.tolerancePlus)) ? null : parseInt(item.tolerancePlus)) : null,
-            toleranceMinus: item?.toleranceMinus ? (isNaN(parseInt(item.toleranceMinus)) ? null : parseInt(item.toleranceMinus)) : null,
+            tolerancePlus: item?.tolerancePlus ? item.tolerancePlus : null,
+            toleranceMinus: item?.toleranceMinus ? item.toleranceMinus : null,
         });
 
         // Save samples to separate table
@@ -1992,7 +2030,9 @@ export class SampleDataSheetService implements OnModuleInit {
                 sampleDataSheetId: row.sampleDataSheetId,
                 no: row.no,
                 measuringItem: String(row.measuringItem || ''),
-                specification: String(row.specification || ''),
+                specification: Number(row.specification || 0),
+                tolerancePlus: row.tolerancePlus !== null && row.tolerancePlus !== undefined ? row.tolerancePlus : null,
+                toleranceMinus: row.toleranceMinus !== null && row.toleranceMinus !== undefined ? row.toleranceMinus : null,
                 rank: String(row.rank || ''),
                 inspectionInstrument: String(row.inspectionInstrument || ''),
                 remark: row.remark ? String(row.remark) : null,
@@ -2107,7 +2147,7 @@ export class SampleDataSheetService implements OnModuleInit {
         const oldfont = await oldPdfDoc.embedFont(fontBytes);
 
         const { width: oldWidth, height: oldHeight } = pageOld.getSize();
-        const fontSize = 8;
+        const fontSize = 6;
 
         pageOld.drawText(`${sheet.partNo}`, {
             x: 310,
@@ -2197,7 +2237,7 @@ export class SampleDataSheetService implements OnModuleInit {
 
             for (let rowIndex = 0; rowIndex < sampleRows.length; rowIndex++) {
                 const row = sampleRows[rowIndex];
-                const samples = row.samples;
+                const samples = row.samples.filter(s => s.value);
 
                 page.drawText(`${row.no ?? ''}`, {
                     x: 45 - (font.widthOfTextAtSize(`${row.no ?? ''}`, fontSize) / 2),
@@ -2233,7 +2273,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 }
 
                 page.drawText(`${row.specification ?? ''}`, {
-                    x: 130,
+                    x: 127,
                     y: startY,
                     size: fontSize,
                     font,
@@ -2249,7 +2289,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 });
 
                 page.drawText(`${row.inspectionInstrument ?? ''}`, {
-                    x: 220,
+                    x: 217,
                     y: startY,
                     size: fontSize,
                     font,
@@ -2257,7 +2297,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 });
 
                 page.drawText(`${row.xBar ?? ''}`, {
-                    x: 655 - (font.widthOfTextAtSize(`${row.xBar ?? ''}`, fontSize) / 2),
+                    x: 657 - (font.widthOfTextAtSize(`${row.xBar ?? ''}`, fontSize) / 2),
                     y: startY,
                     size: fontSize,
                     font,
@@ -2265,7 +2305,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 });
 
                 page.drawText(`${row.r ?? ''}`, {
-                    x: 680 - (font.widthOfTextAtSize(`${row.r ?? ''}`, fontSize) / 2),
+                    x: 682 - (font.widthOfTextAtSize(`${row.r ?? ''}`, fontSize) / 2),
                     y: startY,
                     size: fontSize,
                     font,
@@ -2273,7 +2313,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 });
 
                 page.drawText(`${row.cp ?? ''}`, {
-                    x: 705 - (font.widthOfTextAtSize(`${row.cp ?? ''}`, fontSize) / 2),
+                    x: 707 - (font.widthOfTextAtSize(`${row.cp ?? ''}`, fontSize) / 2),
                     y: startY,
                     size: fontSize,
                     font,
@@ -2281,7 +2321,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 });
 
                 page.drawText(`${row.cpk ?? ''}`, {
-                    x: 730 - (font.widthOfTextAtSize(`${row.cpk ?? ''}`, fontSize) / 2),
+                    x: 732 - (font.widthOfTextAtSize(`${row.cpk ?? ''}`, fontSize) / 2),
                     y: startY,
                     size: fontSize,
                     font,
@@ -2305,8 +2345,39 @@ export class SampleDataSheetService implements OnModuleInit {
                         font,
                         color: rgb(0, 0, 0),
                     });
-
                 }
+
+                let result = [];
+                for (let i = 0; i < samples.length; i += 3) {
+                    result.push([row.judgement ?? '', row.remark ?? '']);
+                }
+
+                for (let index = 0; index < result.length; index++) {
+                    const res = result[index];
+                    const sampleX = (284 + 75) + (index * 125);
+                    page.drawText(`${res[0]}`, {
+                        x: sampleX - (font.widthOfTextAtSize(`${res[0]}`, fontSize) / 2),
+                        y: startY,
+                        size: fontSize,
+                        font,
+                        color: rgb(0, 0, 0),
+                    });
+                    // page.drawText(`${res[1]}`, {
+                    //     x: (remarkX + 25) - (font.widthOfTextAtSize(`${res[1]}`, fontSize) / 2),
+                    //     y: startY,
+                    //     size: fontSize,
+                    //     font,
+                    //     color: rgb(0, 0, 0),
+                    // });
+                }
+
+                page.drawText(`${row.remark || ''}`, {
+                    x: 755,
+                    y: startY,
+                    size: fontSize,
+                    font,
+                    color: rgb(0, 0, 0),
+                });
 
                 startY -= rowHeight;
             }
@@ -2401,7 +2472,7 @@ export class SampleDataSheetService implements OnModuleInit {
             action: SdsApprovalAction.REJECTED,
             loop: sheet.loop
         }];
-        
+
         if (dto.approveRole === 'checker1') {
             if (sheet.production082025 == 'Yes') {
                 role = SdsApprovalRole.CHECKER1;
@@ -2415,7 +2486,7 @@ export class SampleDataSheetService implements OnModuleInit {
         } else if (dto.approveRole === 'checker2') {
             if (sheet.production082025 == 'Yes') {
                 role = SdsApprovalRole.CHECKER2;
-                const checker2 = await this.approvalRepo.findOne({ 
+                const checker2 = await this.approvalRepo.findOne({
                     where: whereConditions.map((x: SampleDataSheetApprovalEntity) => {
                         return {
                             ...x,
@@ -2432,7 +2503,7 @@ export class SampleDataSheetService implements OnModuleInit {
         } else if (dto.approveRole === 'approver') {
             if (sheet.production082025 == 'Yes') {
                 role = SdsApprovalRole.APPROVER;
-                const checker3 = await this.approvalRepo.findOne({ 
+                const checker3 = await this.approvalRepo.findOne({
                     where: whereConditions.map((x: SampleDataSheetApprovalEntity) => {
                         return {
                             ...x,
@@ -2573,7 +2644,7 @@ export class SampleDataSheetService implements OnModuleInit {
                                                                     <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${sheet.partNo}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${sheet.partName}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Model :</td><td><strong>${sheet.model}</strong></td></tr>
-                                                                    <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionByUser?.supplier?.supplierName || actionByUser?.name || '-' }</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionByUser?.supplier?.supplierName || actionByUser?.name || '-'}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                                                                 </table>
 
@@ -2604,7 +2675,7 @@ export class SampleDataSheetService implements OnModuleInit {
                                                                     <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${sheet.partNo}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${sheet.partName}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Model :</td><td><strong>${sheet.model}</strong></td></tr>
-                                                                    <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionByUser?.supplier?.supplierName || actionByUser?.name || '-' }</strong></td></tr>
+                                                                    <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionByUser?.supplier?.supplierName || actionByUser?.name || '-'}</strong></td></tr>
                                                                     <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                                                                 </table>
 
@@ -2735,6 +2806,6 @@ export class SampleDataSheetService implements OnModuleInit {
             throw new NotFoundException('Sample Data Sheet not found');
         }
 
-        await this.sheetRepo.softDelete({ id: sheet.id }); 
+        await this.sheetRepo.softDelete({ id: sheet.id });
     }
 }

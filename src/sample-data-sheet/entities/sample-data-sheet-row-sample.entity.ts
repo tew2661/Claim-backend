@@ -24,7 +24,7 @@ export class SampleDataSheetRowSampleEntity {
     @Column({ name: 'no', type: 'int' })
     no: number;
 
-    @Column({ name: 'value', type: 'decimal', precision: 18, scale: 2, nullable: true })
+    @Column({ name: 'value', type: 'decimal', precision: 18, scale: 4, nullable: true })
     value: number;
 
     @CreateDateColumn({ name: 'created_at', type: 'datetime2' })

@@ -20,9 +20,9 @@ import { EmailService } from 'src/email/email.service';
 export interface CreateInspectionItemDto {
   no: number;
   measuringItem: string;
-  specification: string;
-  tolerancePlus: string;
-  toleranceMinus: string;
+  specification: number;
+  tolerancePlus: number;
+  toleranceMinus: number;
   inspectionInstrument: string;
   rank: string;
 }
@@ -160,8 +160,8 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${savedDetail.partNo}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${savedDetail.partName}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${savedDetail.model}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${savedDetail.supplierEditStatus}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${savedDetail.partStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${savedDetail.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${savedDetail.supplierEditStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${savedDetail.partStatus as PartStatus === 'Active' ? '#2e7d32' : '#e53935'};">${savedDetail.partStatus}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
                 <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
@@ -201,9 +201,9 @@ export class InspectionDetailService {
                   <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${savedDetail.partNo}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${savedDetail.partName}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Model :</td><td><strong>${savedDetail.model}</strong></td></tr>
-                  <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${savedDetail.supplierEditStatus}</strong></td></tr>
-                  <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${savedDetail.partStatus}</strong></td></tr>
-                  <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${savedDetail.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${savedDetail.supplierEditStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${savedDetail.partStatus === 'Active' ? '#2e7d32' : '#e53935'};">${savedDetail.partStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Requested By :</td><td><strong>JTEKT</strong></td></tr>
                   <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                 </table>
 
@@ -367,9 +367,9 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${existing.partNo}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${existing.partName}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${existing.model}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${existing.supplierEditStatus}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${existing.partStatus}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${existing.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${existing.supplierEditStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${existing.partStatus as PartStatus === 'Active' ? '#2e7d32' : '#e53935'};">${existing.partStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-'}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
 
@@ -399,7 +399,7 @@ export class InspectionDetailService {
           const supplier = await this.supplierService.findByCode(existing.supplierCode);
           if (supplier && supplier.email && supplier.email.length > 0) {
             const baseUrl = process.env.MAIL_LINK_WEBAPP_SUPPLIER_SDS ?? 'http://192.168.3.156:8000/';
-            const subject = `New Inspection Detail (ACTIVE): ${existing.partNo}`;
+            const subject = `Inspection Detail (ACTIVE): ${existing.partNo}`;
             const html = `
               <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
                 <p style="margin:0 0 6px 0;">Dear ${existing.supplierName || 'Supplier'}${existing.supplierName ? '' : ' Name'},</p>
@@ -411,9 +411,9 @@ export class InspectionDetailService {
                   <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${existing.partNo}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${existing.partName}</strong></td></tr>
                   <tr><td style="padding-right:10px;">Model :</td><td><strong>${existing.model}</strong></td></tr>
-                  <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${existing.supplierEditStatus}</strong></td></tr>
-                  <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${existing.partStatus}</strong></td></tr>
-                  <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${existing.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${existing.supplierEditStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${existing.partStatus === 'Active' ? '#2e7d32' : '#e53935'};">${existing.partStatus}</strong></td></tr>
+                  <tr><td style="padding-right:10px;">Requested By :</td><td><strong>JTEKT</strong></td></tr>
                   <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
                 </table>
 
@@ -680,8 +680,8 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${inspectionDetail.partNo}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${inspectionDetail.partName}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${inspectionDetail.supplierEditStatus}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${inspectionDetail.partStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${inspectionDetail.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${inspectionDetail.supplierEditStatus}</strong></td></tr>
+                <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${inspectionDetail.partStatus === 'Active' ? '#2e7d32' : '#e53935'};">${inspectionDetail.partStatus}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
                 <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
@@ -933,8 +933,8 @@ export class InspectionDetailService {
           <tr><td style="padding-right:10px;">Part No. :</td><td><strong>${inspectionDetail.partNo}</strong></td></tr>
           <tr><td style="padding-right:10px;">Part Name :</td><td><strong>${inspectionDetail.partName}</strong></td></tr>
           <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
-          <tr><td style="padding-right:10px;">Currecy Edit Status :</td><td><strong>${inspectionDetail.supplierEditStatus}</strong></td></tr>
-          <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong>${inspectionDetail.partStatus}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${inspectionDetail.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${inspectionDetail.supplierEditStatus}</strong></td></tr>
+          <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${inspectionDetail.partStatus === 'Active' ? '#2e7d32' : '#e53935'};">${inspectionDetail.partStatus}</strong></td></tr>
           <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${supplierName}</strong></td></tr>
           <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${requestDate}</strong></td></tr>
         </table>

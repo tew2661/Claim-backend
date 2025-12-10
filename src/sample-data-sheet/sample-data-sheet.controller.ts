@@ -357,7 +357,8 @@ export class SampleDataSheetController {
         const delayQuery = { ...query, hasDelay: true };
         const result = await this.sampleDataSheetService.listSummaryReport({
             ...delayQuery,
-            hasDelay: true
+            hasDelay: true,
+            notCompleted: true,
         }, supplierCode);
         return {
             success: true,

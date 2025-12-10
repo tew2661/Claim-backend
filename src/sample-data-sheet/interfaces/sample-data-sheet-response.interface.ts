@@ -10,8 +10,10 @@ export interface SampleDataSheetRowResponse {
     sampleDataSheetId: number;
     no: number;
     measuringItem: string;
-    specification: string;
+    specification: number;
     rank: string;
+    tolerancePlus: number | null;
+    toleranceMinus: number | null;
     inspectionInstrument: string;
     remark: string | null;
     sampleQty: number;

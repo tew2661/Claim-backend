@@ -3,10 +3,10 @@ export interface SampleValueDto {
     value: string;
 }
 
-export interface CreateSampleDataSheetRowDto {
-    no?: number;
+export class CreateSampleDataSheetRowDto {
+    no: number;
     measuringItem: string;
-    specification: string;
+    specification: number;
     rank: string;
     inspectionInstrument: string;
     remark?: string;
