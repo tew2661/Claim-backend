@@ -2063,6 +2063,7 @@ export class SampleDataSheetService implements OnModuleInit {
             remark: sheet.remark ?? null,
             loop: sheet.loop,
             sdrData: rows,
+            inspectionDetail: sheet.inspectionDetail ? sheet.inspectionDetail : undefined,
             approvals: (sheet.approvals || []).map(approval => ({
                 id: approval.id,
                 actionByUser: approval.actionByUser,
@@ -2093,7 +2094,7 @@ export class SampleDataSheetService implements OnModuleInit {
     async findByInspectionDetailForSdsId(id: number): Promise<SampleDataSheetResponse | null> {
         const sheet = await this.sheetRepo.findOne({
             where: { id, deletedAt: IsNull() },
-            relations: ['rows', 'rows.samples', 'approvals', 'approvals.actionByUser'],
+            relations: ['rows', 'rows.samples', 'approvals', 'approvals.actionByUser', 'inspectionDetail', 'inspectionDetail.specialRequest'],
         });
 
         if (!sheet) {

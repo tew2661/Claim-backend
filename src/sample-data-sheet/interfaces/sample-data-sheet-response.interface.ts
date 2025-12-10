@@ -1,3 +1,4 @@
+import { InspectionDetailEntity } from "src/inspection-detail/entities/inspection-detail.entity";
 import { UsersEntity } from "src/users/entities/users.entity";
 
 export interface SampleDataSheetSampleResponse {
@@ -17,6 +18,7 @@ export interface SampleDataSheetRowResponse {
     inspectionInstrument: string;
     remark: string | null;
     sampleQty: number;
+    inspectionDetail?: InspectionDetailEntity;
     samples: SampleDataSheetSampleResponse[];
     judgement: string | null;
     xBar: string | null;
@@ -41,6 +43,7 @@ export interface SampleDataSheetResponse {
     remark: string | null;
     createdAt: Date;
     updatedAt: Date;
+    inspectionDetail?: InspectionDetailEntity;
     sdrData: SampleDataSheetRowResponse[];
     approvals?: SampleDataSheetApprovalResponse[];
 }
