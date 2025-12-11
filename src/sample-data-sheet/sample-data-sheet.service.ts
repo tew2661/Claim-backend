@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, Repository, IsNull } from 'typeorm';
+import { DataSource, FindOptionsWhere, Repository, IsNull, In } from 'typeorm';
 import { SampleDataSheetEntity } from './entities/sample-data-sheet.entity';
 import { SampleDataSheetRowEntity } from './entities/sample-data-sheet-row.entity';
 import { SampleDataSheetRowSampleEntity } from './entities/sample-data-sheet-row-sample.entity';
@@ -2104,6 +2104,15 @@ export class SampleDataSheetService implements OnModuleInit {
         return this.mapSheet(sheet);
     }
 
+    async findInspectionDetailsBySdsId(id: number): Promise<SampleDataSheetEntity[]> {
+        const sheets = await this.sheetRepo.find({
+            where: { id, deletedAt: IsNull() },
+            relations: ['rows', 'rows.samples', 'approvals', 'approvals.actionByUser', 'inspectionDetail', 'inspectionDetail.specialRequest'],
+        });
+
+        return sheets;
+    }
+
     async findSdsByInspectionId(inspectionId: number): Promise<SampleDataSheetResponse | null> {
         // First verify that the inspection detail exists and has sds_created = 1
         const inspectionDetail = await this.inspectionRepo.findOne({
@@ -2801,8 +2810,8 @@ export class SampleDataSheetService implements OnModuleInit {
         }));
     }
 
-    async removeSampleDataSheetByInspectionId(id: number): Promise<void> {
-        const sheet = await this.sheetRepo.findOne({ where: { inspectionDetailId: id, deletedAt: IsNull() } });
+    async removeSampleDataSheetByInspectionId(id: number[]): Promise<void> {
+        const sheet = await this.sheetRepo.findOne({ where: { inspectionDetailId: In(id), deletedAt: IsNull() } });
         if (!sheet) {
             throw new NotFoundException('Sample Data Sheet not found');
         }

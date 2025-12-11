@@ -24,6 +24,7 @@ import { configPath } from 'src/path-files-config';
 import { Response, Request } from 'express';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { SampleDataSheetService } from 'src/sample-data-sheet/sample-data-sheet.service';
+import * as moment from 'moment';
 
 const ensureUploadDir = (dir: string) => {
   if (!fs.existsSync(dir)) {
@@ -206,7 +207,11 @@ export class InspectionDetailController {
     
     try {
       if (actionBy?.role === 'Supplier' && actionBy?.supplier?.supplierCode) {
-        await this.sampleDataSheetService.removeSampleDataSheetByInspectionId(recordId);
+        const getDataSampleDataSheet = await this.inspectionDetailService.findAllByIds([recordId]);
+        const sheetIds = getDataSampleDataSheet
+          .filter((sheet) => sheet.createdAt && moment(sheet.createdAt).format('YYYY-MM') == moment().format('YYYY-MM'))
+          .map(sheet => sheet.id);
+        await this.sampleDataSheetService.removeSampleDataSheetByInspectionId(sheetIds);
       }
     } catch (error) {}
 

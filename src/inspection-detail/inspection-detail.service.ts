@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Inject, forwardRef, NotAcceptableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { InspectionDetailEntity, ActiveStatus, SupplierEditStatus, PartStatus } from './entities/inspection-detail.entity';
 import { InspectionItemEntity } from './entities/inspection-item.entity';
 import { InspectionSpecialRequestEntity, SpecialRequestStatus } from './entities/inspection-special-request.entity';
@@ -531,6 +531,14 @@ export class InspectionDetailService {
       partStatus: d.partStatus,
       supplierEditStatus: d.supplierEditStatus,
     }));
+  }
+
+  async findAllByIds(ids: number[]) {
+    const entities = await this.inspectionDetailRepo.find({
+      where: { id: In(ids), activeRow: ActiveStatus.YES },
+      relations: ['inspectionItems', 'specialRequest'],
+    });
+    return entities;
   }
 
   async findById(id: number) {
