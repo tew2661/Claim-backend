@@ -218,7 +218,7 @@ export class CronJobsService {
                                             <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
                                                 <p style="margin:0 0 6px 0;">Dear ${item.supplierName || 'Supplier'},</p>
                                                 <p style="margin:0 0 10px 0;">
-                                                    You have received Alert E-Mail, SDS Monthly Request / SDS Special Request Status is <span style="color:#e53935; font-weight:700;">OVERDUE X Day</span> on <span style="font-weight:700;">${monthLabel}</span>
+                                                    You have received Alert E-Mail, SDS Monthly Request / SDS Special Request Status is <span style="color:#e53935; font-weight:700;">OVERDUE ${delayDays} Day</span> on <span style="font-weight:700;">${monthLabel}</span>
                                                 </p>
                                                 <p style="margin:0 0 6px 0;">Your SDS submission Due Date is on <span style="color:#1e88e5; font-weight:700;">${dueDateLabel}</span></p>
                                                 <p style="margin:0 0 10px 0; color:#e53935; font-weight:700;">Please input and Submit AS SOON AS POSSIBLE</p>
@@ -289,7 +289,7 @@ export class CronJobsService {
                                             <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
                                                 <p style="margin:0 0 6px 0;">Dear ${inspectionDetail.supplierName || 'Supplier'},</p>
                                                 <p style="margin:0 0 10px 0;">
-                                                    You have received Alert E-Mail, SDS Monthly Request / SDS Special Request Status is <span style="color:#e53935; font-weight:700;">OVERDUE X Day</span> on <span style="font-weight:700;">${monthLabel}</span>
+                                                    You have received Alert E-Mail, SDS Monthly Request / SDS Special Request Status is <span style="color:#e53935; font-weight:700;">OVERDUE ${delayDays} Day</span> on <span style="font-weight:700;">${monthLabel}</span>
                                                 </p>
                                                 <p style="margin:0 0 6px 0;">Your SDS submission Due Date is on <span style="color:#1e88e5; font-weight:700;">${dueDateLabel}</span></p>
                                                 <p style="margin:0 0 10px 0; color:#e53935; font-weight:700;">Please input and Submit AS SOON AS POSSIBLE</p>
