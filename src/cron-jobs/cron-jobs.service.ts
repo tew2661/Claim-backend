@@ -21,7 +21,7 @@ export class CronJobsService {
         this.updateSampleDataSheetDelayStatus();
     }
 
-    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, { name: 'delay_notifications' })
+    @Cron('1 0 * * *', { name: 'midnight-delay', timeZone: 'Asia/Bangkok' })
     async handleDelayNotifications() {
         this.logger.debug('Running delay notification job...' , moment().format('YYYY-MM-DD HH:mm:ss'));
         await this.updateSampleDataSheetDelayStatus();
