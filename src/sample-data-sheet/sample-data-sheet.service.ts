@@ -2283,7 +2283,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 }
 
                 page.drawText(`${row.specification ?? ''}`, {
-                    x: 127,
+                    x: 175 - font.widthOfTextAtSize(`${row.specification ?? ''}`, fontSize),
                     y: startY,
                     size: fontSize,
                     font,
@@ -2307,7 +2307,7 @@ export class SampleDataSheetService implements OnModuleInit {
                 });
 
                 page.drawText(`${row.xBar ?? ''}`, {
-                    x: 657 - (font.widthOfTextAtSize(`${row.xBar ?? ''}`, fontSize) / 2),
+                    x: 658 - (font.widthOfTextAtSize(`${row.xBar ?? ''}`, fontSize) / 2),
                     y: startY,
                     size: fontSize,
                     font,

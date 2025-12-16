@@ -16,6 +16,7 @@ import { InspectionSpecialRequestEntity } from 'src/inspection-detail/entities/i
 import { EmailModule } from 'src/email/email.module';
 import { SupplierModule } from 'src/supplier/supplier.module';
 import { UsersEntity } from 'src/users/entities/users.entity';
+import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
 
 @Module({
     imports: [
@@ -28,6 +29,7 @@ import { UsersEntity } from 'src/users/entities/users.entity';
             InspectionDetailEntity,
             InspectionSpecialRequestEntity,
             UsersEntity,
+            SupplierEntity,
         ]),
         EmailModule,
         SupplierModule,

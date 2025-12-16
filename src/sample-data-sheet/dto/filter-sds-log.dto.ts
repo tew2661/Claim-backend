@@ -8,4 +8,6 @@ export class FilterSdsLogDto {
     actionBy?: string;
     actionDateFrom?: Date;
     actionDateTo?: Date;
+    limit?: number;
+    offset?: number;
 }

@@ -17,11 +17,32 @@ export class SdsLogController {
         // If user is Supplier, force filter by Supplier role
         if (actionBy?.role === 'Supplier') {
             filterDto.actionRole = 'Supplier';
+            filterDto.actionBy = actionBy.name;
         }
-        const logs = await this.sdsLogService.findAll(filterDto);
+        const result = await this.sdsLogService.findAll(filterDto);
         return {
             success: true,
-            data: logs,
+            data: result.data,
+            total: result.total,
+        };
+    }
+
+    @Get('action-by-options')
+    async getActionByOptions(
+        @Query('actionRole') actionRole: string,
+        @Req() { headers: { actionBy } }: { headers: { actionBy: UsersEntity } },
+    ) {
+        // If user is Supplier, only return their own name
+        if (actionBy?.role === 'Supplier') {
+            return {
+                success: true,
+                data: [actionBy.name],
+            };
+        }
+        const options = await this.sdsLogService.getActionByOptions(actionRole || undefined);
+        return {
+            success: true,
+            data: options,
         };
     }
 
