@@ -856,7 +856,9 @@ export class SampleDataSheetService implements OnModuleInit {
                 sheet.has_delay,
                 sheet.delay_days
             FROM dbo.sample_data_sheets sheet
-            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
+            LEFT JOIN dbo.sds_inspection_detail detail ON 
+            detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
+            AND detail.sds_created = 1
             LEFT JOIN rej r ON r.sample_data_sheet_id = sheet.id AND r.rn = 1
             LEFT JOIN dbo.sds_inspection_special_request sp
                 ON sp.inspection_detail_id = detail.id
@@ -984,7 +986,9 @@ export class SampleDataSheetService implements OnModuleInit {
         let countQuery = `
             SELECT COUNT(*) as total
             FROM dbo.sample_data_sheets sheet
-            LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
+            LEFT JOIN dbo.sds_inspection_detail detail 
+            ON detail.id = sheet.inspection_detail_id AND detail.deleted_at IS NULL
+            AND detail.sds_created = 1
             WHERE sheet.deleted_at IS NULL
         `;
 
@@ -1207,7 +1211,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
                 LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
-                    AND detail.deleted_at IS NULL
+                    AND detail.deleted_at IS NULL AND detail.sds_created = 1
                 WHERE sheet.deleted_at IS NULL
                 
                 UNION ALL
@@ -1459,6 +1463,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
                 LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
+                AND detail.sds_created = 1
                 AND detail.deleted_at IS NULL
                 AND sheet.deleted_at IS NULL
                 
@@ -1665,6 +1670,7 @@ export class SampleDataSheetService implements OnModuleInit {
                     sheet.delay_days
                 FROM dbo.sample_data_sheets sheet
                 LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
+                AND detail.sds_created = 1
                 AND detail.deleted_at IS NULL
                 AND sheet.deleted_at IS NULL
                 
