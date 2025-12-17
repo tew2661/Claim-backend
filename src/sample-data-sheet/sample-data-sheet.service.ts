@@ -36,6 +36,7 @@ import * as fs from 'fs';
 import * as moment from 'moment';
 import { EmailService } from 'src/email/email.service';
 import { SupplierService } from 'src/supplier/supplier.service';
+import { CronJobsService } from 'src/cron-jobs/cron-jobs.service';
 
 interface SampleValue {
     no: number;
@@ -83,6 +84,7 @@ export class SampleDataSheetService implements OnModuleInit {
         @InjectDataSource()
         private readonly dataSource: DataSource,
         private moduleRef: ModuleRef,
+        private readonly cronJobsService: CronJobsService,
     ) { }
 
     onModuleInit() {
@@ -116,8 +118,7 @@ export class SampleDataSheetService implements OnModuleInit {
 
         const savedSheet = await this.sheetRepo.save(sheet);
 
-        // Calculate and update delay status
-        await this.updateDelayStatus(savedSheet.id, dto.inspectionDetailId, savedSheet.sdrDate);
+        await this.cronJobsService.updateSampleDataSheetDelayStatus();
 
         const inspectionItems = await this.dataSource.getRepository(InspectionItemEntity).find({
             where: { inspectionDetailId: dto.inspectionDetailId },
@@ -187,8 +188,7 @@ export class SampleDataSheetService implements OnModuleInit {
 
         const savedSheet = await this.sheetRepo.save(sheet);
 
-        // Calculate and update delay status
-        await this.updateDelayStatus(savedSheet.id, dto.inspectionDetailId, savedSheet.sdrDate);
+        await this.cronJobsService.updateSampleDataSheetDelayStatus();
 
         const inspectionItems = await this.dataSource.getRepository(InspectionItemEntity).find({
             where: { inspectionDetailId: dto.inspectionDetailId },
@@ -1755,102 +1755,12 @@ export class SampleDataSheetService implements OnModuleInit {
         };
     }
 
-
-
-    private async updateDelayStatus(
-        sampleDataSheetId: number,
-        inspectionDetailId: number,
-        sdrDate: Date,
-    ): Promise<void> {
-        try {
-            const updateQuery = `
-                WITH latest_approved AS (
-                    SELECT
-                        a.sample_data_sheet_id,
-                        a.action_date,
-                        a.document_type,
-                        a.loop,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY a.sample_data_sheet_id, a.loop, a.document_type
-                            ORDER BY a.id DESC
-                        ) AS rn
-                    FROM sample_data_sheet_approvals a
-                    WHERE a.action = 'Approved'
-                      AND a.role = 'Approver'
-                      AND a.document_type IN ('SDS', 'SDR')
-                      AND a.sample_data_sheet_id = @0
-                ),
-                both_approved AS (
-                    SELECT
-                        sds_app.sample_data_sheet_id, 
-                        sds_app.loop,
-                        CASE 
-                            WHEN sds_app.action_date >= sdr_app.action_date THEN sds_app.action_date
-                            ELSE sdr_app.action_date
-                        END AS action_date
-                    FROM latest_approved sds_app
-                    INNER JOIN latest_approved sdr_app
-                        ON sds_app.sample_data_sheet_id = sdr_app.sample_data_sheet_id
-                        AND sds_app.loop = sdr_app.loop
-                        AND sds_app.rn = 1
-                        AND sdr_app.rn = 1
-                        AND sds_app.document_type = 'SDS'
-                        AND sdr_app.document_type = 'SDR'
-                )
-                UPDATE sds
-                SET 
-                    has_delay = CASE 
-                        WHEN sds.sdr_date IS NOT NULL THEN 
-                            CASE 
-                                -- ถ้า submitted แล้ว เช็คว่า submit date > due date
-                                WHEN la.action_date IS NOT NULL 
-                                 AND CAST(sds.sdr_date AS DATE) < CAST(la.action_date AS DATE) THEN 1
-                                -- ถ้ายังไม่ submitted เช็คว่า current date > due date
-                                WHEN la.action_date IS NULL 
-                                 AND CAST(sds.sdr_date AS DATE) < CAST(GETDATE() AS DATE) THEN 1
-                                ELSE 0
-                            END
-                        ELSE 0
-                    END,
-                    delay_days = CASE 
-                        -- ถ้า submitted แล้วและ submit หลัง due date
-                        WHEN sds.sdr_date IS NOT NULL 
-                         AND la.action_date IS NOT NULL
-                         AND CAST(sds.sdr_date AS DATE) < CAST(la.action_date AS DATE) THEN 
-                            DATEDIFF(day, CAST(sds.sdr_date AS DATE), CAST(la.action_date AS DATE))
-                        -- ถ้ายังไม่ submitted และเลย due date แล้ว
-                        WHEN sds.sdr_date IS NOT NULL 
-                         AND la.action_date IS NULL
-                         AND CAST(sds.sdr_date AS DATE) < CAST(GETDATE() AS DATE) THEN 
-                            DATEDIFF(day, CAST(sds.sdr_date AS DATE), CAST(GETDATE() AS DATE))
-                        ELSE NULL
-                    END
-                FROM dbo.sample_data_sheets sds
-                LEFT JOIN both_approved la 
-                    ON la.sample_data_sheet_id = sds.id
-                    AND la.loop = sds.loop
-                WHERE sds.id = @0
-            `;
-
-            await this.dataSource.query(updateQuery, [sampleDataSheetId]);
-        } catch (error) {
-            // Log error but don't fail the main operation
-            console.error('Error updating delay status:', error);
-        }
-    }
-
     private formatMonthYear(value: Date): string {
         return moment(value).format('MM-YYYY');
     }
 
     private formatDayMonthYear(value: Date): string {
         return moment(value).format('DD-MM-YYYY');
-    }
-
-    private startOfDay(value: Date): Date {
-        const clone = new Date(value);
-        clone.setHours(0, 0, 0, 0);
-        return clone;
     }
 
     private async createRow(row: CreateSampleDataSheetRowDto, index: number, sheetId: number, item?: InspectionItemEntity) {
@@ -1868,17 +1778,18 @@ export class SampleDataSheetService implements OnModuleInit {
             r: row.r ? String(row.r) : null,
             cp: row.cp ? String(row.cp) : null,
             cpk: row.cpk ? String(row.cpk) : null,
-            tolerancePlus: item?.tolerancePlus ? item.tolerancePlus : null,
-            toleranceMinus: item?.toleranceMinus ? item.toleranceMinus : null,
+            tolerancePlus: item?.tolerancePlus !== null && item?.tolerancePlus !== undefined ? item.tolerancePlus : null,
+            toleranceMinus: item?.toleranceMinus !== null && item?.toleranceMinus !== undefined ? item.toleranceMinus : null,
         });
 
         // Save samples to separate table
         if (row.samples && row.samples.length > 0) {
-            const sampleEntities = row.samples.map(sample => this.sampleRepo.create({
-                sampleDataSheetRowId: savedRow.id,
-                no: sample.no,
-                value: sample.value ? parseFloat(sample.value) : null,
-            }));
+            const sampleEntities = row.samples.filter(sample => sample.value !== null && sample.value !== undefined)
+                .map(sample => this.sampleRepo.create({
+                    sampleDataSheetRowId: savedRow.id,
+                    no: sample.no,
+                    value: parseFloat(sample.value),
+                }));
             await this.sampleRepo.save(sampleEntities);
         }
 
@@ -2553,8 +2464,7 @@ export class SampleDataSheetService implements OnModuleInit {
             if (sdrAction === SdsApprovalAction.REJECTED) {
                 sheet.sdrDate = reSubmitDate ?? sheet.sdrDate;
                 await this.sheetRepo.save(sheet);
-                // Recalculate delay status after updating sdrDate
-                await this.updateDelayStatus(sheet.id, sheet.inspectionDetailId, sheet.sdrDate);
+                await this.cronJobsService.updateSampleDataSheetDelayStatus();
             }
 
             await this.approvalRepo.save(sdrApproval);
@@ -2600,8 +2510,7 @@ export class SampleDataSheetService implements OnModuleInit {
             if (sdsAction === SdsApprovalAction.REJECTED) {
                 sheet.sdrDate = reSubmitDate ?? sheet.sdrDate;
                 await this.sheetRepo.save(sheet);
-                // Recalculate delay status after updating sdrDate
-                await this.updateDelayStatus(sheet.id, sheet.inspectionDetailId, sheet.sdrDate);
+                await this.cronJobsService.updateSampleDataSheetDelayStatus();
             }
 
             await this.approvalRepo.save(sdsApproval);

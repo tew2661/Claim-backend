@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SampleDataSheetController } from './sample-data-sheet.controller';
 import { SampleDataSheetService } from './sample-data-sheet.service';
@@ -17,6 +17,7 @@ import { EmailModule } from 'src/email/email.module';
 import { SupplierModule } from 'src/supplier/supplier.module';
 import { UsersEntity } from 'src/users/entities/users.entity';
 import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
+import { CronJobsModule } from 'src/cron-jobs/cron-jobs.module';
 
 @Module({
     imports: [
@@ -35,6 +36,7 @@ import { SupplierEntity } from 'src/supplier/entities/supplier.entity';
         SupplierModule,
         AuthModule,
         UsersModule,
+        forwardRef(() => CronJobsModule),
     ],
     controllers: [SampleDataSheetController, SdsLogController],
     providers: [SampleDataSheetService, SdsLogService],

@@ -10,6 +10,7 @@ import { UsersModule } from 'src/users/users.module';
 import { SupplierModule } from 'src/supplier/supplier.module';
 import { SampleDataSheetModule } from 'src/sample-data-sheet/sample-data-sheet.module';
 import { EmailModule } from 'src/email/email.module';
+import { CronJobsModule } from 'src/cron-jobs/cron-jobs.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { EmailModule } from 'src/email/email.module';
     forwardRef(() => SupplierModule),
     forwardRef(() => SampleDataSheetModule),
     EmailModule,
+    forwardRef(() => CronJobsModule),
   ],
   controllers: [InspectionDetailController],
   providers: [InspectionDetailService],

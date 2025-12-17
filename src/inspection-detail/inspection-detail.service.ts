@@ -16,6 +16,7 @@ import * as fontkit from '@pdf-lib/fontkit';
 import { SampleDataSheetResponse } from 'src/sample-data-sheet/interfaces/sample-data-sheet-response.interface';
 import { configPath } from 'src/path-files-config';
 import { EmailService } from 'src/email/email.service';
+import { CronJobsService } from 'src/cron-jobs/cron-jobs.service';
 
 export interface CreateInspectionItemDto {
   no: number;
@@ -78,6 +79,7 @@ export class InspectionDetailService {
     private readonly sdsLogService: SdsLogService,
     private readonly sampleDataSheetService: SampleDataSheetService,
     private readonly emailService: EmailService,
+    private readonly cronJobsService: CronJobsService,
   ) { }
 
   async create(dto: CreateInspectionDetailDto, actionBy?: UsersEntity) {
@@ -124,7 +126,7 @@ export class InspectionDetailService {
       await this.inspectionItemRepo.save(items);
     }
 
-     
+
 
     // Create log for inspection detail creation
     await this.sdsLogService.createLog({
@@ -138,6 +140,8 @@ export class InspectionDetailService {
       actionDate: new Date(),
       remark: null,
     });
+
+    await this.cronJobsService.updateInspectionDelayStatus();
 
     // Notify JTEKT (Access Management Master) users upon creation when Part Status is INACTIVE and Edit Status is LOCKED
     try {
@@ -162,7 +166,7 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${savedDetail.model}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${savedDetail.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${savedDetail.supplierEditStatus}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${savedDetail.partStatus as PartStatus === 'Active' ? '#2e7d32' : '#e53935'};">${savedDetail.partStatus}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-'}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
 
@@ -315,6 +319,8 @@ export class InspectionDetailService {
       actionDate: new Date(),
       remark: null,
     });
+
+    await this.cronJobsService.updateInspectionDelayStatus();
 
     // Only log status changes if not a Supplier
     if (actionBy?.role !== 'Supplier') {
@@ -652,7 +658,7 @@ export class InspectionDetailService {
     });
 
     const savedRequest = await this.specialRequestRepo.save(entity);
-
+    await this.cronJobsService.updateInspectionDelayStatus();
     if (inspectionDetail) {
       // Create log for special request
       await this.sdsLogService.createLog({
@@ -690,7 +696,7 @@ export class InspectionDetailService {
                 <tr><td style="padding-right:10px;">Model :</td><td><strong>${inspectionDetail.model}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Current Edit Status :</td><td><strong style="color:${inspectionDetail.supplierEditStatus === 'Locked' ? '#e53935' : '#2e7d32'};">${inspectionDetail.supplierEditStatus}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Current Part Status :</td><td><strong style="color:${inspectionDetail.partStatus === 'Active' ? '#2e7d32' : '#e53935'};">${inspectionDetail.partStatus}</strong></td></tr>
-                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-' }</strong></td></tr>
+                <tr><td style="padding-right:10px;">Requested By :</td><td><strong>${actionBy?.supplier?.supplierName || actionBy?.name || '-'}</strong></td></tr>
                 <tr><td style="padding-right:10px;">Request Date :</td><td><strong>${moment(now).format('DD-MM-YYYY HH:mm')}</strong></td></tr>
               </table>
 
@@ -863,8 +869,8 @@ export class InspectionDetailService {
       .andWhere('d.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
       .andWhere('s.id IS NULL')
-      .andWhere('d.dueDate < :now', { 
-        now: now.format('YYYY-MM-DD 00:00:00') 
+      .andWhere('d.dueDate < :now', {
+        now: now.format('YYYY-MM-DD 00:00:00')
       })
       .getMany();
   }
@@ -878,8 +884,8 @@ export class InspectionDetailService {
       .where('s.activeRow = :active', { active: 'Y' })
       .andWhere('s.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
-      .andWhere('s.dueDate < :now', { 
-        now: now.format('YYYY-MM-DD 00:00:00') 
+      .andWhere('s.dueDate < :now', {
+        now: now.format('YYYY-MM-DD 00:00:00')
       })
       .getMany();
   }
@@ -893,9 +899,9 @@ export class InspectionDetailService {
       .andWhere('d.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
       .andWhere('s.id IS NULL')
-      .andWhere('d.dueDate BETWEEN :start AND :end', { 
-        start: now.format('YYYY-MM-01 00:00:00'), 
-        end: now.add(1,'m').format('YYYY-MM-01 23:59:59')
+      .andWhere('d.dueDate BETWEEN :start AND :end', {
+        start: now.format('YYYY-MM-01 00:00:00'),
+        end: now.add(1, 'm').format('YYYY-MM-01 23:59:59')
       })
       .getMany();
   }
@@ -927,7 +933,7 @@ export class InspectionDetailService {
     const supplierName = actionBy?.supplier?.supplierName || actionBy?.name || 'Unknown';
     const baseUrl = process.env.MAIL_LINK_WEBAPP_JTEKT_SDS ?? 'http://192.168.3.156:8000/';
     const requestDate = moment().format('DD-MM-YYYY HH:mm');
-    
+
     const htmlContent = `
       <div style="font-family: Arial, 'Noto Sans Thai', sans-serif; color: #222; line-height: 1.6;">
         <p style="margin:0 0 6px 0;">Dear JATH User,</p>
@@ -961,7 +967,7 @@ export class InspectionDetailService {
     `;
 
     // ส่งอีเมลไปยังผู้ใช้ทุกคนที่มี accessMasterManagement = 'Y'
-    const emailPromises = masterUsers.map(user => 
+    const emailPromises = masterUsers.map(user =>
       this.emailService.sendEmail(
         user.email,
         `Unlock Request - Part No: ${inspectionDetail.partNo}`,

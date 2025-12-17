@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InspectionDetailService } from 'src/inspection-detail/inspection-detail.service';
 import { EmailService } from 'src/email/email.service';
@@ -12,28 +12,63 @@ export class CronJobsService {
     private readonly logger = new Logger(CronJobsService.name);
 
     constructor(
+        @Inject(forwardRef(() => InspectionDetailService))
         private readonly inspectionDetailService: InspectionDetailService,
         private readonly emailService: EmailService,
         private readonly supplierService: SupplierService,
         @InjectDataSource()
         private readonly dataSource: DataSource,
-    ) { 
+    ) {
+        this.updateInspectionDelayStatus();
         this.updateSampleDataSheetDelayStatus();
     }
 
     @Cron('1 0 * * *', { name: 'midnight-delay', timeZone: 'Asia/Bangkok' })
     async handleDelayNotifications() {
-        this.logger.debug('Running delay notification job...' , moment().format('YYYY-MM-DD HH:mm:ss'));
+        this.logger.debug('Running delay notification job...', moment().format('YYYY-MM-DD HH:mm:ss'));
+        await this.updateInspectionDelayStatus();
         await this.updateSampleDataSheetDelayStatus();
         await this.handleMonthlyReminder();
         await this.handleMonthlyDelay();
         await this.handleSpecialRequestDelay();
-        this.logger.debug('Completed delay notification job.' , moment().format('YYYY-MM-DD HH:mm:ss'));
+        this.logger.debug('Completed delay notification job.', moment().format('YYYY-MM-DD HH:mm:ss'));
     }
+    async updateInspectionDelayStatus() {
+        this.logger.debug('Running daily delay status update job...');
 
+        try {
+            const updateInspectionQuery = `
+                UPDATE detail
+                SET 
+                    has_delay = CASE 
+                        WHEN detail.sds_created = 0 AND detail.due_date IS NOT NULL THEN 
+                            CASE 
+                                WHEN CAST(detail.due_date AS DATE) < CAST(GETDATE() AS DATE) THEN 1
+                                ELSE 0
+                            END
+                        ELSE 0
+                    END,
+                    delay_days = CASE 
+                        WHEN detail.sds_created = 0 
+                         AND detail.due_date IS NOT NULL 
+                         AND CAST(detail.due_date AS DATE) < CAST(GETDATE() AS DATE) THEN 
+                            DATEDIFF(day, CAST(detail.due_date AS DATE), CAST(GETDATE() AS DATE))
+                        ELSE NULL
+                    END
+                FROM dbo.sds_inspection_detail detail
+                WHERE detail.deleted_at IS NULL
+                  AND detail.active_row = 'Y'
+            `;
+
+            await this.dataSource.query(updateInspectionQuery);
+            this.logger.debug(`Updated delay status for all inspection details`);
+        } catch (error) {
+            this.logger.error(`Failed to update delay status for inspection details: ${error.message}`);
+        }
+    }
     async updateSampleDataSheetDelayStatus() {
         this.logger.debug('Running daily delay status update job...');
-        
+
         try {
             // Update all sample_data_sheets with computed delay status
             const updateQuery = `
@@ -91,36 +126,9 @@ export class CronJobsService {
                     ON ba.sample_data_sheet_id = sds.id
                     AND ba.loop = sds.loop
                 WHERE sds.deleted_at IS NULL
-            `;            await this.dataSource.query(updateQuery);
+            `; await this.dataSource.query(updateQuery);
             this.logger.debug(`Updated delay status for all sample data sheets`);
 
-            // Update all sds_inspection_detail with computed delay status
-            // For records where sds_created = 0 and past due_date
-            const updateInspectionQuery = `
-                UPDATE detail
-                SET 
-                    has_delay = CASE 
-                        WHEN detail.sds_created = 0 AND detail.due_date IS NOT NULL THEN 
-                            CASE 
-                                WHEN CAST(detail.due_date AS DATE) < CAST(GETDATE() AS DATE) THEN 1
-                                ELSE 0
-                            END
-                        ELSE 0
-                    END,
-                    delay_days = CASE 
-                        WHEN detail.sds_created = 0 
-                         AND detail.due_date IS NOT NULL 
-                         AND CAST(detail.due_date AS DATE) < CAST(GETDATE() AS DATE) THEN 
-                            DATEDIFF(day, CAST(detail.due_date AS DATE), CAST(GETDATE() AS DATE))
-                        ELSE NULL
-                    END
-                FROM dbo.sds_inspection_detail detail
-                WHERE detail.deleted_at IS NULL
-                  AND detail.active_row = 'Y'
-            `;
-
-            await this.dataSource.query(updateInspectionQuery);
-            this.logger.debug(`Updated delay status for all inspection details`);
         } catch (error) {
             this.logger.error('Error updating delay status', error);
         }
