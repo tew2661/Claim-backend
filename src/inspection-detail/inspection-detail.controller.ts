@@ -39,9 +39,27 @@ const inspectionStorage = diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const extension = extname(file.originalname) || '.pdf';
-    cb(null, `${file.fieldname}-${uniqueSuffix}${extension}`);
+    const dateStr = moment().format('YYYY-MM-DD');
+
+    // Try to get partNo from payload
+    let partNo = 'unknown';
+    try {
+      const payload = req.body?.payload;
+      if (payload) {
+        const parsed = JSON.parse(payload);
+        if (parsed.partNo) {
+          // Sanitize partNo for filename (remove special characters)
+          partNo = String(parsed.partNo).replace(/[^a-zA-Z0-9-_]/g, '_');
+        }
+      }
+    } catch (e) {
+      // Fallback to timestamp if parsing fails
+    }
+
+    // Add unique suffix to avoid conflicts
+    const uniqueSuffix = Date.now();
+    cb(null, `${file.fieldname}-${partNo}-${dateStr}-${uniqueSuffix}${extension}`);
   },
 });
 
@@ -204,7 +222,7 @@ export class InspectionDetailController {
       // parsedBody.supplierEditStatus = 'Locked';
       parsedBody.partStatus = 'Inactive';
     }
-    
+
     try {
       if (actionBy?.role === 'Supplier' && actionBy?.supplier?.supplierCode) {
         const getDataSampleDataSheet = await this.inspectionDetailService.findAllByIds([recordId]);
@@ -213,7 +231,7 @@ export class InspectionDetailController {
           .map(sheet => sheet.id);
         await this.sampleDataSheetService.removeSampleDataSheetByInspectionId(sheetIds);
       }
-    } catch (error) {}
+    } catch (error) { }
 
     const result = await this.inspectionDetailService.update(recordId, parsedBody, actionBy);
     return {

@@ -27,12 +27,12 @@ async function seedInspections(ds: DataSource, count: number): Promise<Inspectio
     const partNo = `PN-${randomString(8)}`;
 
     // Random due date: 40% past (delayed), 30% near future, 30% far future
-    const daysOffset = Math.random() < 0.4 
+    const daysOffset = Math.random() < 0.4
       ? -randomInt(1, 30)  // Past (delayed)
       : Math.random() < 0.5
         ? randomInt(1, 7)   // Near future
         : randomInt(8, 60); // Far future
-    
+
     const dueDate = new Date(now);
     dueDate.setDate(dueDate.getDate() + daysOffset);
 
@@ -108,17 +108,17 @@ async function seedSds(ds: DataSource, inspectionDetails: InspectionDetailEntity
 
   for (const detail of inspectionDetails) {
     const sheetCount = randomInt(0, maxSheetsPerDetail);
-    
+
     // 30% chance to skip SDS creation entirely (will show as delayed if past due_date)
     const skipSds = Math.random() < 0.3;
     if (skipSds) continue;
-    
+
     for (let i = 0; i < sheetCount; i++) {
       // Random SDR date: can be before or after due_date
       const sdrDaysOffset = Math.random() < 0.5
         ? -randomInt(1, 15)  // Before due date (early submission)
         : randomInt(1, 20);   // After due date (delayed submission)
-      
+
       const sdrDate = new Date(detail.dueDate);
       sdrDate.setDate(sdrDate.getDate() + sdrDaysOffset);
 
@@ -147,8 +147,8 @@ async function seedSds(ds: DataSource, inspectionDetails: InspectionDetailEntity
 
       // rows
       const rows: SampleDataSheetRowEntity[] = [];
-        const rowCount = randomInt(5, 15);
-        // const rowCount = 100;
+      const rowCount = randomInt(5, 15);
+      // const rowCount = 100;
       for (let r = 0; r < rowCount; r++) {
         const row = rowRepo.create({
           sampleDataSheetId: savedSheet.id,
@@ -161,7 +161,7 @@ async function seedSds(ds: DataSource, inspectionDetails: InspectionDetailEntity
           tolerancePlus: randomInt(1, 3),
           toleranceMinus: randomInt(1, 3),
           sampleQty: 5,
-          judgement: randomFrom(['OK', 'NG']),
+          judgement: randomFrom(['O', 'X']),
           xBar: null,
           r: null,
           cp: null,
@@ -190,7 +190,7 @@ async function seedSds(ds: DataSource, inspectionDetails: InspectionDetailEntity
         // Random approval date: can be same day or few days after sdr_date
         const approvalDate = new Date(savedSheet.sdrDate);
         approvalDate.setDate(approvalDate.getDate() + randomInt(0, 5));
-        
+
         const approval = approvalRepo.create({
           sampleDataSheetId: savedSheet.id,
           loop: savedSheet.loop,

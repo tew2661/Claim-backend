@@ -37,13 +37,15 @@ export class CronJobsService {
         this.logger.debug('Running daily delay status update job...');
 
         try {
+            const today = moment().format('YYYY-MM-DD 00:00:00');
+
             const updateInspectionQuery = `
                 UPDATE detail
                 SET 
                     has_delay = CASE 
                         WHEN detail.sds_created = 0 AND detail.due_date IS NOT NULL THEN 
                             CASE 
-                                WHEN CAST(detail.due_date AS DATE) < CAST(GETDATE() AS DATE) THEN 1
+                                WHEN CAST(detail.due_date AS DATE) < @0 THEN 1
                                 ELSE 0
                             END
                         ELSE 0
@@ -51,17 +53,18 @@ export class CronJobsService {
                     delay_days = CASE 
                         WHEN detail.sds_created = 0 
                          AND detail.due_date IS NOT NULL 
-                         AND CAST(detail.due_date AS DATE) < CAST(GETDATE() AS DATE) THEN 
-                            DATEDIFF(day, CAST(detail.due_date AS DATE), CAST(GETDATE() AS DATE))
+                         AND CAST(detail.due_date AS DATE) < @0 THEN 
+                            DATEDIFF(day, CAST(detail.due_date AS DATE), @0)
                         ELSE NULL
                     END
                 FROM dbo.sds_inspection_detail detail
                 WHERE detail.deleted_at IS NULL
+                  AND detail.sds_created = 0
                   AND detail.active_row = 'Y'
             `;
 
-            await this.dataSource.query(updateInspectionQuery);
-            this.logger.debug(`Updated delay status for all inspection details`);
+            await this.dataSource.query(updateInspectionQuery, [today]);
+            this.logger.debug(`Updated delay status for all inspection details (today: ${today})`);
         } catch (error) {
             this.logger.error(`Failed to update delay status for inspection details: ${error.message}`);
         }
@@ -70,6 +73,8 @@ export class CronJobsService {
         this.logger.debug('Running daily delay status update job...');
 
         try {
+            const today = moment().format('YYYY-MM-DD 00:00:00');
+
             // Update all sample_data_sheets with computed delay status
             const updateQuery = `
                 WITH both_approved AS (
@@ -103,7 +108,7 @@ export class CronJobsService {
                                  AND CAST(sds.sdr_date AS DATE) < CAST(ba.action_date AS DATE) THEN 1
                                 -- ถ้ายังไม่ submitted เช็คว่า current date > due date
                                 WHEN ba.action_date IS NULL 
-                                 AND CAST(sds.sdr_date AS DATE) < CAST(GETDATE() AS DATE) THEN 1
+                                 AND CAST(sds.sdr_date AS DATE) < @0 THEN 1
                                 ELSE 0
                             END
                         ELSE 0
@@ -117,8 +122,8 @@ export class CronJobsService {
                         -- ถ้ายังไม่ submitted และเลย due date แล้ว
                         WHEN sds.sdr_date IS NOT NULL 
                          AND ba.action_date IS NULL
-                         AND CAST(sds.sdr_date AS DATE) < CAST(GETDATE() AS DATE) THEN 
-                            DATEDIFF(day, CAST(sds.sdr_date AS DATE), CAST(GETDATE() AS DATE))
+                         AND CAST(sds.sdr_date AS DATE) < @0 THEN 
+                            DATEDIFF(day, CAST(sds.sdr_date AS DATE), @0)
                         ELSE NULL
                     END
                 FROM dbo.sample_data_sheets sds
@@ -126,8 +131,10 @@ export class CronJobsService {
                     ON ba.sample_data_sheet_id = sds.id
                     AND ba.loop = sds.loop
                 WHERE sds.deleted_at IS NULL
-            `; await this.dataSource.query(updateQuery);
-            this.logger.debug(`Updated delay status for all sample data sheets`);
+            `;
+
+            await this.dataSource.query(updateQuery, [today]);
+            this.logger.debug(`Updated delay status for all sample data sheets (today: ${today})`);
 
         } catch (error) {
             this.logger.error('Error updating delay status', error);

@@ -320,7 +320,10 @@ export class SampleDataSheetController {
         const supplierCode = actionBy?.role === 'Supplier'
             ? actionBy?.supplier?.supplierCode
             : undefined;
-        const result = await this.sampleDataSheetService.listSummaryReport(query, supplierCode);
+        const result = await this.sampleDataSheetService.listSummaryReport({
+            ...query,
+            pageSummaryReport: true,
+        }, supplierCode);
         return {
             success: true,
             data: result,
@@ -353,10 +356,8 @@ export class SampleDataSheetController {
         const supplierCode = actionBy?.role === 'Supplier'
             ? actionBy?.supplier?.supplierCode
             : undefined;
-        // Force hasDelay filter to true
-        const delayQuery = { ...query, hasDelay: true };
         const result = await this.sampleDataSheetService.listSummaryReport({
-            ...delayQuery,
+            ...query,
             hasDelay: true,
             notCompleted: true,
         }, supplierCode);
@@ -480,8 +481,8 @@ export class SampleDataSheetController {
                             partName: item.part_name,
                             partNo: item.part_no,
                             ngType: item.ng_count,
-                            sdsStatus,
-                            dueToInspectionDept: item.sdr_date ? moment(item.sdr_date).format('DD-MM-YYYY') : '',
+                            saStatus: item.saStatus || '',
+                            dueToImplement: item.dueToImplement ? moment(item.dueToImplement).format('DD-MM-YYYY') : '',
                         };
                     }),
                 },

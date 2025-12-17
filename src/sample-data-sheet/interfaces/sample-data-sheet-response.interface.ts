@@ -25,6 +25,8 @@ export interface SampleDataSheetRowResponse {
     r: string | null;
     cp: string | null;
     cpk: string | null;
+    saStatus: string | null;
+    dueToImplement: Date | null;
 }
 
 export interface SampleDataSheetResponse {

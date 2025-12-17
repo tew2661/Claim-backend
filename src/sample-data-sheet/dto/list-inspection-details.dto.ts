@@ -15,6 +15,7 @@ export interface ListInspectionDetailsQueryDto {
     notHasDelay?: boolean;
     pageCreatedSds?: boolean;
     notCompleted?: boolean;
+    pageSummaryReport?: boolean;
 }
 
 export interface DashboardStatsQuery extends ListInspectionDetailsQueryDto {

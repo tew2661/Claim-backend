@@ -1240,7 +1240,26 @@ export class SampleDataSheetService implements OnModuleInit {
                   AND detail.active_row = 'Y'
             )
             SELECT
-                cd.*,
+                cd.sheet_id,
+                cd.detail_id,
+                cd.supplier,
+                cd.part_no,
+                cd.part_name,
+                cd.model,
+                cd.inspection_detail_id,
+                cd.production_08_2025,
+                cd.sdr_date,
+                cd.part_status,
+                cd.supplier_edit_status,
+                cd.sds_created,
+                cd.supplier_code,
+                cd.supplier_name,
+                cd.due_date,
+                cd.created_at,
+                cd.loop,
+                cd.has_sheet,
+                cd.has_delay,
+                cd.delay_days,
                 sp.id AS special_id,
                 l1_sdr.action AS checker1ApprovedSdr,
                 l1_sds.action AS checker1ApprovedSds,
@@ -1368,7 +1387,7 @@ export class SampleDataSheetService implements OnModuleInit {
 
         let queryCount = `${querys}`;
         if (filters.hasDelay) {
-            querys += ` AND cd.has_delay = 1`;
+            querys += ` AND cd.has_delay = 1 AND cd.sheet_id IS NULL`;
         } else if (filters.notHasDelay) {
             querys += ` AND cd.has_delay = 0`;
         }
@@ -1868,7 +1887,9 @@ export class SampleDataSheetService implements OnModuleInit {
                 l2_sdr.action AS checker2ApprovedSdr,
                 l2_sds.action AS checker2ApprovedSds,
                 l3_sdr.action AS checker3ApprovedSdr,
-                l3_sds.action AS checker3ApprovedSds
+                l3_sds.action AS checker3ApprovedSds,
+                first_oot.sa_status AS saStatus,
+                first_oot.due_to_implement AS dueToImplement
             FROM (
                 SELECT
                     sds.id,
@@ -1894,6 +1915,13 @@ export class SampleDataSheetService implements OnModuleInit {
             LEFT JOIN latest l2_sds ON l2_sds.sample_data_sheet_id = sds.id AND l2_sds.loop = sds.loop AND l2_sds.document_type = 'SDS' AND l2_sds.role = 'Checker 2' AND l2_sds.rn = 1
             LEFT JOIN latest l3_sdr ON l3_sdr.sample_data_sheet_id = sds.id AND l3_sdr.loop = sds.loop AND l3_sdr.document_type = 'SDR' AND l3_sdr.role = 'Approver' AND l3_sdr.rn = 1
             LEFT JOIN latest l3_sds ON l3_sds.sample_data_sheet_id = sds.id AND l3_sds.loop = sds.loop AND l3_sds.document_type = 'SDS' AND l3_sds.role = 'Approver' AND l3_sds.rn = 1
+            OUTER APPLY (
+                SELECT TOP 1 r.sa_status, r.due_to_implement
+                FROM sample_data_sheet_rows r
+                WHERE r.sample_data_sheet_id = sds.id
+                AND r.sa_status IS NOT NULL
+                ORDER BY r.id
+            ) AS first_oot
         `;
 
         const results = await this.dataSource.query(sql, params);
@@ -1954,6 +1982,8 @@ export class SampleDataSheetService implements OnModuleInit {
                 r: row.r ? String(row.r) : null,
                 cp: row.cp ? String(row.cp) : null,
                 cpk: row.cpk ? String(row.cpk) : null,
+                saStatus: row.saStatus || null,
+                dueToImplement: row.dueToImplement || null,
             };
         });
 
@@ -2659,6 +2689,21 @@ export class SampleDataSheetService implements OnModuleInit {
                 }
             } catch (error) {
                 console.error('Failed to send email to Manager:', error);
+            }
+        }
+
+        // Save sa_status and due_to_implement for out-of-tolerance rows
+        if (dto.outOfToleranceRows && dto.outOfToleranceRows.length > 0) {
+            for (const rowData of dto.outOfToleranceRows) {
+                if (rowData.rowId) {
+                    await this.rowRepo.update(
+                        { id: rowData.rowId },
+                        {
+                            saStatus: rowData.saStatus || null,
+                            dueToImplement: rowData.dueToImplement ? new Date(rowData.dueToImplement) : null,
+                        }
+                    );
+                }
             }
         }
 

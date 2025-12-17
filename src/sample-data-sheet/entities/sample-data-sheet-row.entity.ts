@@ -65,6 +65,12 @@ export class SampleDataSheetRowEntity {
     @Column({ name: 'cpk', type: 'nvarchar', length: 50, nullable: true })
     cpk: string;
 
+    @Column({ name: 'sa_status', type: 'nvarchar', length: 50, nullable: true })
+    saStatus: string;
+
+    @Column({ name: 'due_to_implement', type: 'datetime2', nullable: true })
+    dueToImplement: Date;
+
     @CreateDateColumn({ name: 'created_at', type: 'datetime2' })
     createdAt: Date;
 

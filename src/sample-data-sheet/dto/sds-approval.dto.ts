@@ -1,8 +1,22 @@
-import { IsInt, IsString, IsOptional, IsDateString, IsEnum } from 'class-validator';
+import { IsInt, IsString, IsOptional, IsDateString, IsEnum, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum ApprovalAction {
     APPROVE = 'approve',
     REJECT = 'reject',
+}
+
+export class OutOfToleranceRowDto {
+    @IsInt()
+    rowId: number;
+
+    @IsString()
+    @IsOptional()
+    saStatus?: string;
+
+    @IsOptional()
+    @IsDateString()
+    dueToImplement?: string;
 }
 
 export class SdsApprovalDto {
@@ -27,6 +41,12 @@ export class SdsApprovalDto {
 
     @IsString()
     approveRole: string;
+
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => OutOfToleranceRowDto)
+    outOfToleranceRows?: OutOfToleranceRowDto[];
 }
 
 export class SdsApprovalHistoryQueryDto {
