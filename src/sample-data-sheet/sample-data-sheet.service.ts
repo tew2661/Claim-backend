@@ -1639,12 +1639,12 @@ export class SampleDataSheetService implements OnModuleInit {
         // Build count query
         let countQueryNotHasDelay = `
             SELECT count(*) as notHasDelay FROM sds_inspection_detail sid
-            WHERE sid.sds_created = 1
+            WHERE sid.sds_created = 1 and sid.deleted_at is null and sid.active_row = 'Y'
         `;
 
         let countQueryHasDelay = `
             SELECT count(*) as hasDelay FROM sds_inspection_detail sid
-            WHERE sid.sds_created = 0 AND sid.has_delay = 1
+            WHERE sid.sds_created = 0 AND sid.has_delay = 1 and sid.deleted_at is null and sid.active_row = 'Y'
         `;
 
         const filterParams: any[] = [];
