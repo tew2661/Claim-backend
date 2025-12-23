@@ -383,9 +383,9 @@ export class SampleDataSheetController {
         const { hasDelay, notHasDelay } = await this.sampleDataSheetService.countSummaryReport(query);
 
         const forMonthly = {
-            delayResult: hasDelay,
+            hasDelay,
             allResult: delayResult.items,
-            totalCount: notHasDelay,
+            notHasDelay,
         };
 
         const filterYearly = {
@@ -398,29 +398,29 @@ export class SampleDataSheetController {
         const delayResultYearly = await this.sampleDataSheetService.listSummaryReport(filterYearly);
         const { hasDelay: hasDelayYearly, notHasDelay: notHasDelayYearly } = await this.sampleDataSheetService.countSummaryReport(filterYearly);
         const forYearly = {
-            delayResult: hasDelayYearly,
+            hasDelay: hasDelayYearly,
             allResult: delayResultYearly.items,
-            totalCount: notHasDelayYearly,
+            notHasDelay: notHasDelayYearly,
         };
 
         // Get inspection result data
         const inspectionResult = await this.sampleDataSheetService.getInspectionDashboardData(query);
 
         // Calculate statistics
-        const totalCount = forMonthly.totalCount;
-        const delayCount = forMonthly.delayResult;
-        const onProcessCompleteCount = totalCount - delayCount;
+        const notDelayCount = forMonthly.notHasDelay;
+        const delayCount = forMonthly.hasDelay;
+        const onProcessCompleteCount = notDelayCount;
 
-        const totalCountYearly = forYearly.totalCount;
-        const delayCountYearly = hasDelayYearly;
-        const onProcessCompleteCountYearly = totalCountYearly - delayCountYearly;
+        const notDelayCountYearly = forYearly.notHasDelay;
+        const delayCountYearly = forYearly.hasDelay;
+        const onProcessCompleteCountYearly = notDelayCountYearly;
         return {
             success: true,
             data: {
                 monthly: {
-                    delayPercentage: totalCount > 0 ? Math.round((delayCount / totalCount) * 100) : 0,
+                    delayPercentage: notDelayCount > 0 ? Math.round((delayCount / notDelayCount) * 100) : 0,
                     delayCount,
-                    onProcessCompletePercentage: totalCount > 0 ? Math.round((onProcessCompleteCount / totalCount) * 100) : 0,
+                    onProcessCompletePercentage: notDelayCount > 0 ? Math.round((onProcessCompleteCount / notDelayCount) * 100) : 0,
                     onProcessCompleteCount,
                     delayData: forMonthly.allResult.map((item, index) => ({
                         no: index + 1,
@@ -433,9 +433,9 @@ export class SampleDataSheetController {
                     })),
                 },
                 yearly: {
-                    delayPercentage: totalCountYearly > 0 ? Math.round((delayCountYearly / totalCountYearly) * 100) : 0,
+                    delayPercentage: notDelayCountYearly > 0 ? Math.round((delayCountYearly / notDelayCountYearly) * 100) : 0,
                     delayCount: delayCountYearly,
-                    onProcessCompletePercentage: totalCountYearly > 0 ? Math.round((onProcessCompleteCountYearly / totalCountYearly) * 100) : 0,
+                    onProcessCompletePercentage: notDelayCountYearly > 0 ? Math.round((onProcessCompleteCountYearly / notDelayCountYearly) * 100) : 0,
                     onProcessCompleteCount: onProcessCompleteCountYearly,
                     delayData: forYearly.allResult.map((item, index) => ({
                         no: index + 1,

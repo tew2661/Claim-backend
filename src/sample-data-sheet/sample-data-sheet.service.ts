@@ -1637,146 +1637,40 @@ export class SampleDataSheetService implements OnModuleInit {
         supplierCode?: string,
     ): Promise<{ hasDelay: number; notHasDelay: number }> {
         // Build count query
-        let countQuery = `
-            WITH latest_approved AS (
-                SELECT
-                    a.*,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY 
-                            a.sample_data_sheet_id,
-                            a.loop,
-                            a.document_type,
-                            a.role
-                        ORDER BY a.id DESC
-                    ) AS rn
-                FROM sample_data_sheet_approvals a
-                WHERE a.action = 'Approved'
-                  AND a.deleted_at IS NULL
-            ),
-            combined_data AS (
-                SELECT 
-                    detail.id,
-                    sheet.id as sheet_id,
-                    detail.supplier_code,
-                    sheet.part_no,
-                    sheet.part_name,
-                    sheet.model,
-                    sheet.sdr_date,
-                    sheet.sdr_date as due_date,
-                    sheet.inspection_detail_id,
-                    sheet.loop,
-                    1 as has_sheet,
-                    sheet.has_delay,
-                    sheet.delay_days
-                FROM dbo.sample_data_sheets sheet
-                LEFT JOIN dbo.sds_inspection_detail detail ON detail.id = sheet.inspection_detail_id 
-                AND detail.sds_created = 1
-                AND detail.deleted_at IS NULL
-                AND sheet.deleted_at IS NULL
-                
-                UNION ALL
-                
-                SELECT 
-                    detail.id,
-                    NULL as sheet_id,
-                    detail.supplier_code,
-                    detail.part_no,
-                    detail.part_name,
-                    detail.model,
-                    NULL as sdr_date,
-                    detail.due_date,
-                    detail.id as inspection_detail_id,
-                    1 as loop,
-                    0 as has_sheet,
-                    detail.has_delay,
-                    detail.delay_days
-                FROM dbo.sds_inspection_detail detail
-                WHERE detail.sds_created = 0
-                  AND detail.active_row = 'Y'
-                  AND detail.deleted_at IS NULL
-                  ${filters.pageCreatedSds ? `AND detail.part_status = 'Active' AND detail.supplier_edit_status = 'Locked'` : ''} 
-            )
-            SELECT 
-                SUM(CASE WHEN cd.has_delay = 1 THEN 1 ELSE 0 END) as hasDelay,
-                SUM(CASE WHEN cd.has_delay = 0 THEN 1 ELSE 0 END) as notHasDelay
-            FROM combined_data cd
-            LEFT JOIN dbo.sds_inspection_special_request sp
-                ON sp.inspection_detail_id = cd.inspection_detail_id
-               AND sp.id = (
-                    SELECT MAX(id)
-                    FROM dbo.sds_inspection_special_request
-                    WHERE inspection_detail_id = cd.inspection_detail_id
-                      AND deleted_at IS NULL
-                )
-               AND sp.deleted_at IS NULL
-            LEFT JOIN latest_approved la_sds
-                ON la_sds.sample_data_sheet_id = cd.sheet_id
-               AND la_sds.loop = cd.loop
-               AND la_sds.document_type = 'SDS'
-               AND la_sds.role = 'Approver'
-               AND la_sds.rn = 1
-            WHERE 1=1
+        let countQueryNotHasDelay = `
+            SELECT count(*) as notHasDelay FROM sds_inspection_detail sid
+            WHERE sid.sds_created = 1
+        `;
+
+        let countQueryHasDelay = `
+            SELECT count(*) as hasDelay FROM sds_inspection_detail sid
+            WHERE sid.sds_created = 0 AND sid.has_delay = 1
         `;
 
         const filterParams: any[] = [];
         let paramIndex = 0;
         let querys = '';
 
-        if (supplierCode) {
-            querys += ` AND cd.supplier_code = @${paramIndex}`;
-            filterParams.push(supplierCode);
-            paramIndex++;
-        } else if (filters.supplierCode && filters.supplierCode.toLowerCase() !== 'all') {
-            querys += ` AND cd.supplier_code = @${paramIndex}`;
-            filterParams.push(filters.supplierCode);
-            paramIndex++;
-        }
-
-        if (filters.partNo && filters.partNo.toLowerCase() !== 'all') {
-            querys += ` AND LOWER(cd.part_no) LIKE LOWER(@${paramIndex})`;
-            filterParams.push(`%${filters.partNo}%`);
-            paramIndex++;
-        }
-
-        if (filters.partName && filters.partName.toLowerCase() !== 'all') {
-            querys += ` AND LOWER(cd.part_name) LIKE LOWER(@${paramIndex})`;
-            filterParams.push(`%${filters.partName}%`);
-            paramIndex++;
-        }
-
-        if (filters.model && filters.model.toLowerCase() !== 'all') {
-            querys += ` AND LOWER(cd.model) LIKE LOWER(@${paramIndex})`;
-            filterParams.push(`%${filters.model}%`);
-            paramIndex++;
-        }
-
         if (filters.monthYear && filters.monthYear.toLowerCase() !== 'all') {
-            querys += ` AND cd.due_date BETWEEN @${paramIndex} AND @${paramIndex + 1}`;
+            querys += ` AND sid.due_date BETWEEN @${paramIndex} AND @${paramIndex + 1}`;
             filterParams.push(moment(`${moment(filters.monthYear, 'MM-YYYY').format('YYYY-MM')}-01 00:00:00`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
             filterParams.push(moment(`${moment(filters.monthYear, 'MM-YYYY').format('YYYY-MM')}-${moment(filters.monthYear, 'MM-YYYY').endOf('month').format('DD')} 23:59:59`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
             paramIndex += 2;
         }
 
         if (filters.year && filters.year.toLowerCase() !== 'all') {
-            querys += ` AND cd.due_date BETWEEN @${paramIndex} AND @${paramIndex + 1}`;
+            querys += ` AND sid.due_date BETWEEN @${paramIndex} AND @${paramIndex + 1}`;
             filterParams.push(moment(`${filters.year}-04-01 00:00:00`, 'YYYY-MM-DD HH:mm:ss').format('YYYY-MM-DD HH:mm:ss'));
             filterParams.push(moment(`${filters.year}-03-31 23:59:59`, 'YYYY-MM-DD HH:mm:ss').add(1, 'year').format('YYYY-MM-DD HH:mm:ss'));
             paramIndex += 2;
         }
 
-        if (filters.sdsType && filters.sdsType.toLowerCase() !== 'all') {
-            if (filters.sdsType.toLowerCase() === 'special') {
-                querys += ` AND sp.id IS NOT NULL`;
-            } else if (filters.sdsType.toLowerCase() === 'normal') {
-                querys += ` AND sp.id IS NULL`;
-            }
-        }
-
-        const result = await this.dataSource.query(countQuery + querys, filterParams);
+        const resultNotHasDelay = await this.dataSource.query(countQueryNotHasDelay + querys, filterParams);
+        const resultHasDelay = await this.dataSource.query(countQueryHasDelay + querys, filterParams);
 
         return {
-            hasDelay: result && result.length > 0 ? (result[0].hasDelay || 0) : 0,
-            notHasDelay: result && result.length > 0 ? (result[0].notHasDelay || 0) : 0,
+            hasDelay: resultHasDelay && resultHasDelay.length > 0 ? (resultHasDelay[0].hasDelay || 0) : 0,
+            notHasDelay: resultNotHasDelay && resultNotHasDelay.length > 0 ? (resultNotHasDelay[0].notHasDelay || 0) : 0,
         };
     }
 

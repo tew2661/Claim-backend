@@ -13,6 +13,7 @@ services:
       - ./src:/app/src
       - ./uploads:/app/uploads
       - ./files-templates:/app/files-templates
+      - ./.env:/app/.env
     ports:
       - "3600:3000"
     environment:
