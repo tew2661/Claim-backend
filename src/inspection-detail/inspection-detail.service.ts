@@ -882,7 +882,7 @@ export class InspectionDetailService {
     return this.inspectionDetailRepo.createQueryBuilder('d')
       .innerJoinAndSelect('d.specialRequest', 's') // Join to get supplier info later
       .where('s.activeRow = :active', { active: 'Y' })
-      .andWhere('s.partStatus = :status', { status: 'Active' })
+      .andWhere('d.partStatus = :status', { status: 'Active' })
       .andWhere('d.sdsCreated = :sdsCreated', { sdsCreated: false })
       .andWhere('s.dueDate < :now', {
         now: now.format('YYYY-MM-DD 00:00:00')
