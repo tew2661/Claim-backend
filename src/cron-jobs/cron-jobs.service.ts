@@ -44,7 +44,7 @@ export class CronJobsService {
         `, [startOfMonth, endOfMonth]);
 
         this.logger.debug('oldInspectionDetail copy length', oldInspectionDetail.length);
- 
+
         if (oldInspectionDetail.length > 0) {
             for (const inspectionDetail of oldInspectionDetail) {
                 await this.inspectionDetailService.createInspectionDetailCopy(inspectionDetail);
@@ -61,6 +61,7 @@ export class CronJobsService {
         await this.handleMonthlyReminder();
         await this.handleMonthlyDelay();
         await this.handleSpecialRequestDelay();
+        await this.createInspectionDetail();
         this.logger.debug('Completed delay notification job.', moment().format('YYYY-MM-DD HH:mm:ss'));
     }
     async updateInspectionDelayStatus() {
