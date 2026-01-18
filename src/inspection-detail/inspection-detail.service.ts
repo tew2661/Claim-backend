@@ -105,6 +105,7 @@ export class InspectionDetailService {
       partStatus: dto.partStatus as any,
       supplierEditStatus: supplierEditStatus as any,
       dueDate,
+      createdBy: actionBy?.id,
     });
 
     const savedDetail = await this.inspectionDetailRepo.save(detail);
@@ -848,6 +849,7 @@ export class InspectionDetailService {
 
     oldPdfDoc.setTitle(`sdrReportFile-${sheet.partNo} -${sheet.partName} `);
     oldPdfDoc.setAuthor(`${[...new Set(['System'])].join(',')} `);
+
     oldPdfDoc.setSubject('Sample Data Sheet');
     oldPdfDoc.setKeywords(['Sample Data Sheet']);
     oldPdfDoc.setProducer(`Sample Data Sheet`);
@@ -858,6 +860,46 @@ export class InspectionDetailService {
     // fs.writeFileSync(savetemp, pdfBytesFinal);
 
     return pdfBytesFinal;
+  }
+
+  async createInspectionDetailCopy(inspectionDetail: any) {
+    const inspectionItems = await this.inspectionItemRepo.find({
+      where: { inspectionDetailId: inspectionDetail.id },
+    });
+
+    const dueDate = moment().date(25).startOf('day').toDate();
+
+    const copyInspectionDetail = this.inspectionDetailRepo.create({
+      supplierCode: inspectionDetail.supplier_code,
+      supplierName: inspectionDetail.supplier_name,
+      partNo: inspectionDetail.part_no,
+      partName: inspectionDetail.part_name,
+      model: inspectionDetail.model,
+      aisFile: inspectionDetail.ais_file,
+      sdrFile: inspectionDetail.sdr_file,
+      partStatus: inspectionDetail.part_status,
+      supplierEditStatus: inspectionDetail.supplier_edit_status,
+      activeRow: inspectionDetail.active_row,
+      dueDate,
+      sdsCreated: false,
+      copyId: inspectionDetail.id,
+      createdBy: inspectionDetail.created_by,
+      updatedBy: inspectionDetail.updated_by,
+    });
+
+    const savedCopyInspectionDetail = await this.inspectionDetailRepo.save(copyInspectionDetail);
+
+    const copyInspectionItems = inspectionItems.map((item) => ({
+      ...item,
+      id: null,
+      inspectionDetailId: savedCopyInspectionDetail.id,
+    }));
+
+    if (copyInspectionItems.length > 0) {
+      await this.inspectionItemRepo.save(copyInspectionItems);
+    }
+
+    return savedCopyInspectionDetail;
   }
 
   async findMonthlyDelayedItems() {

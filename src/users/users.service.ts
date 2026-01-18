@@ -35,6 +35,7 @@ export class UsersService {
                 activeRow: ActiveStatus.YES,
                 supplier: IsNull()
             },
+            order: { id: 'DESC' },
         });
     }
 
@@ -58,13 +59,13 @@ export class UsersService {
     }
 
     findOneForSupplier(id: number) {
-        const data = this.usersRepository.findOne({ 
-            relations: ['supplier'], 
-            where: { 
-                id, 
-                activeRow: ActiveStatus.YES, 
+        const data = this.usersRepository.findOne({
+            relations: ['supplier'],
+            where: {
+                id,
+                activeRow: ActiveStatus.YES,
                 supplier: { activeRow: ActiveStatus.YES }
-            } 
+            }
         });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
@@ -81,7 +82,7 @@ export class UsersService {
     }
 
     findForMiddlewares(id: number) {
-        const data = this.usersRepository.findOne({ where: { id } , relations: ['supplier'] });
+        const data = this.usersRepository.findOne({ where: { id }, relations: ['supplier'] });
         if (!data) {
             throw new NotFoundException(`ไม่พบข้อมูล Users ที่มี ID ${id} ในระบบ.`);
         }
@@ -161,7 +162,7 @@ export class UsersService {
             'Welcome to SCM',
             htmlContent,
         );
-        
+
         return await this.findOne(data.id);
     }
 
@@ -170,12 +171,12 @@ export class UsersService {
             throw new BadRequestException(`ไม่สามารถแก้ไขผู้ใช้งานได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
         }
 
-        const user = await this.usersRepository.findOne({ 
-            where: { 
+        const user = await this.usersRepository.findOne({
+            where: {
                 id,
-                activeRow: ActiveStatus.YES, 
-                ...isSupplier ? { supplier: Not(IsNull()) } : { supplier: IsNull() } 
-            } 
+                activeRow: ActiveStatus.YES,
+                ...isSupplier ? { supplier: Not(IsNull()) } : { supplier: IsNull() }
+            }
         });
 
         if (!user) {
@@ -231,7 +232,7 @@ export class UsersService {
 
         if (updateUserDto.password) {
             fieldUpdate.expiresPassword = updateUserDto.password == 'P@ssw0rd' ? null : moment().add(3, 'M').toDate(),
-            fieldUpdate.password = await bcrypt.hash(updateUserDto.password, saltRounds);
+                fieldUpdate.password = await bcrypt.hash(updateUserDto.password, saltRounds);
         }
 
         if (imageFilename) {
@@ -309,7 +310,7 @@ export class UsersService {
         });
     }
 
-    async fixPassword(updatePasswordDto: UpdatePasswordDto, actionBy: UsersEntity , isAccessMasterManagement: boolean): Promise<UsersEntity> {
+    async fixPassword(updatePasswordDto: UpdatePasswordDto, actionBy: UsersEntity, isAccessMasterManagement: boolean): Promise<UsersEntity> {
         const saltRounds = 10;
         const fieldUpdate: DeepPartial<UsersEntity> = {}
 
@@ -373,8 +374,8 @@ export class UsersService {
             throw new BadRequestException(`ไม่สามารถเปลี่ยนรหัสผ่านได้ เนื่องจากไม่ใช่ ผู้ดูแลระบบ`);
         }
 
-        const data = await this.supplierRepository.findOne({ 
-            where: { 
+        const data = await this.supplierRepository.findOne({
+            where: {
                 id: updatePasswordDto.id,
                 activeRow: ActiveStatus.YES,
                 user: { activeRow: ActiveStatus.YES }

@@ -21,6 +21,36 @@ export class CronJobsService {
     ) {
         this.updateInspectionDelayStatus();
         this.updateSampleDataSheetDelayStatus();
+        this.createInspectionDetail();
+    }
+
+    async createInspectionDetail() {
+        this.logger.debug('Running create inspection detail job...');
+        const startOfMonth = moment().startOf('month').format('YYYY-MM-DD 00:00:00');
+        const endOfMonth = moment().endOf('month').format('YYYY-MM-DD 23:59:59');
+
+        const oldInspectionDetail = await this.dataSource.query(`
+            SELECT sds_main.*, sds_main_spr.id as spr_id FROM sds_inspection_detail sds_main
+            LEFT JOIN sds_inspection_special_request sds_main_spr ON sds_main_spr.inspection_detail_id = sds_main.id AND sds_main_spr.active_row = 'Y'
+            WHERE sds_main.deleted_at IS NULL AND sds_main.copy_id IS NULL AND sds_main.active_row = 'Y' AND sds_main.part_status = 'Active'
+			AND sds_main_spr.id IS NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM sds_inspection_detail sds_child
+                LEFT JOIN sds_inspection_special_request sds_child_spr ON sds_child_spr.inspection_detail_id = sds_child.id AND sds_child_spr.active_row = 'Y'
+                WHERE sds_child.deleted_at IS NULL AND sds_child.copy_id = sds_main.id AND sds_child.active_row = 'Y' AND sds_child.part_status = 'Active'
+				AND sds_child_spr.id IS NULL
+                AND sds_child.due_date BETWEEN @0 AND @1
+            )
+        `, [startOfMonth, endOfMonth]);
+
+        this.logger.debug('oldInspectionDetail copy length', oldInspectionDetail.length);
+ 
+        if (oldInspectionDetail.length > 0) {
+            for (const inspectionDetail of oldInspectionDetail) {
+                await this.inspectionDetailService.createInspectionDetailCopy(inspectionDetail);
+            }
+        }
+
     }
 
     @Cron('1 0 * * *', { name: 'midnight-delay', timeZone: 'Asia/Bangkok' })

@@ -64,6 +64,7 @@ export class SupplierService {
                 ...query.supplierName ? { supplierName: Like(`%${query.supplierName || ''}%`) } : {},
                 activeRow: ActiveStatus.YES,
             },
+            order: { id: 'DESC' },
         });
     }
 
